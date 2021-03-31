@@ -129,6 +129,15 @@ impl<SM: MBShareMem> MBChannelShareMem<SM> {
             req_queue.base + std::mem::size_of::<MBQueue<MBReqEntry>>() as MBPtrT,
             mem,
         );
+        //clear share memory
+        let req_queue_default = MBQueue::<MBReqEntry>::default();
+        mem.lock()
+            .unwrap()
+            .write_sized(req_queue.base, &req_queue_default);
+        let resp_queue_default = MBQueue::<MBRespEntry>::default();
+        mem.lock()
+            .unwrap()
+            .write_sized(resp_queue.base, &resp_queue_default);
         MBChannelShareMem {
             base,
             mem: mem.clone(),
@@ -136,19 +145,23 @@ impl<SM: MBShareMem> MBChannelShareMem<SM> {
             resp_queue,
         }
     }
-    pub fn with_elf(file: &str, mem: &Arc<Mutex<SM>>) -> MBChannelShareMem<SM> {
+    pub fn with_elf(file: &str, mem: &Arc<Mutex<SM>>, load: bool) -> MBChannelShareMem<SM> {
+        use xmas_elf::ElfFile;
         let mut base: MBPtrT = 0;
-        mem.lock()
-            .unwrap()
-            .load_elf_with(file, |elf| {
-                if let Some(s) = elf.find_section_by_name(".mailbox") {
-                    base = s.address() as MBPtrT;
-                    Ok(())
-                } else {
-                    Err("Can't get \".mailbox\" section!".to_string())
-                }
-            })
-            .unwrap();
+        let f = |elf: &ElfFile, _: &str| -> Result<(), String> {
+            if let Some(s) = elf.find_section_by_name(".mailbox") {
+                base = s.address() as MBPtrT;
+                Ok(())
+            } else {
+                Err("Can't get \".mailbox\" section!".to_string())
+            }
+        };
+        if load {
+            mem.lock().unwrap().load_elf_with(file, f).unwrap();
+        } else {
+            use super::utils::process_elf;
+            process_elf(file, f).unwrap();
+        }
         MBChannelShareMem::new(base, mem)
     }
 }

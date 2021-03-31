@@ -172,6 +172,7 @@ impl<SM: MBShareMem> MBChannelShareMemBuilder<SM> {
             for (key, ch) in chs.iter() {
                 let k = key.as_str().unwrap();
                 let elf = ch["elf"].as_str();
+                let load = ch["load"].as_bool();
                 let base = ch["base"].as_i64();
                 let space_k = ch["space"]
                     .as_str()
@@ -181,7 +182,11 @@ impl<SM: MBShareMem> MBChannelShareMemBuilder<SM> {
                     k, space_k
                 ))?;
                 let ch = if let Some(e) = elf {
-                    MBChannelShareMem::with_elf(e, space)
+                    if let Some(l) = load {
+                        MBChannelShareMem::with_elf(e, space, l)
+                    } else {
+                        MBChannelShareMem::with_elf(e, space, true)
+                    }
                 } else if let Some(b) = base {
                     MBChannelShareMem::new(b as MBPtrT, space)
                 } else {
@@ -216,11 +221,11 @@ mod test {
         }
     }
     impl MBShareMem for MyShareMem {
-        fn write(&mut self, _addr: MBPtrT, _data: &[u8]) -> usize {
-            0
+        fn write(&mut self, _addr: MBPtrT, data: &[u8]) -> usize {
+            data.len()
         }
-        fn read(&self, _addr: MBPtrT, _data: &mut [u8]) -> usize {
-            0
+        fn read(&self, _addr: MBPtrT, data: &mut [u8]) -> usize {
+            data.len()
         }
     }
 

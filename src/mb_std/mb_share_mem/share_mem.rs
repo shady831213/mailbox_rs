@@ -2,7 +2,7 @@ use crate::mb_channel::*;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use std::fs;
+use super::utils::*;
 use xmas_elf::program;
 use xmas_elf::ElfFile;
 
@@ -101,38 +101,32 @@ pub trait MBShareMem {
     }
 
     fn load_elf(&mut self, file: &str) -> Result<(), String> {
-        self.load_elf_with(file, |_| Ok(()))
+        self.load_elf_with(file, |_, _| Ok(()))
     }
 
-    fn load_elf_with<F: FnMut(&ElfFile) -> Result<(), String>>(
+    fn load_elf_with<F: FnMut(&ElfFile, &str) -> Result<(), String>>(
         &mut self,
         file: &str,
         mut f: F,
     ) -> Result<(), String> {
-        let file_expand = shellexpand::full(file)
-            .map_err(|e| e.to_string())?
-            .to_string();
-        let content = fs::read(&file_expand)
-            .map_err(|e| format!("load elf {} fail! {:?}", &file_expand, e.to_string()))?
-            .into_boxed_slice();
-        let elf = ElfFile::new(&content)
-            .map_err(|e| format!("load elf {} fail! {:?}", &file_expand, e.to_string()))?;
-        f(&elf).map_err(|e| format!("load elf {} fail! {:?}", &file_expand, e.to_string()))?;
-        elf.program_iter().for_each(|p| {
-            if let Ok(program::Type::Load) = p.get_type() {
-                if let Ok(program::SegmentData::Undefined(d)) = p.get_data(&elf) {
-                    let addr = p.virtual_addr() as MBPtrT;
-                    println!(
-                        "load elf {} segment({}) @ {:#x} - {:#x}!",
-                        &file_expand,
-                        d.len() as MBPtrT,
-                        addr,
-                        addr + d.len() as MBPtrT
-                    );
-                    self.write(addr, d);
+        process_elf(file, |elf, file| {
+            f(elf, file)?;
+            elf.program_iter().for_each(|p| {
+                if let Ok(program::Type::Load) = p.get_type() {
+                    if let Ok(program::SegmentData::Undefined(d)) = p.get_data(&elf) {
+                        let addr = p.virtual_addr() as MBPtrT;
+                        println!(
+                            "load elf {} segment({}) @ {:#x} - {:#x}!",
+                            file,
+                            d.len() as MBPtrT,
+                            addr,
+                            addr + d.len() as MBPtrT
+                        );
+                        self.write(addr, d);
+                    }
                 }
-            }
-        });
-        Ok(())
+            });
+            Ok(())
+        })
     }
 }
