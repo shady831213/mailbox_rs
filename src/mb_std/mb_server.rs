@@ -196,7 +196,7 @@ pub struct MBSMPtrResolver<SM: MBShareMem> {
     sm: Arc<Mutex<SM>>,
 }
 impl<SM: MBShareMem> MBSMPtrResolver<SM> {
-    fn new(sm: &Arc<Mutex<SM>>) -> MBSMPtrResolver<SM> {
+    pub fn new(sm: &Arc<Mutex<SM>>) -> MBSMPtrResolver<SM> {
         MBSMPtrResolver { sm: sm.clone() }
     }
 }

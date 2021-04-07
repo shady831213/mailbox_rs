@@ -15,10 +15,11 @@ nb = { version = "1", optional = true }
 xmas-elf = { version = "0.7.0", optional = true }
 shellexpand = { version = "2.1.0", optional = true }
 yaml-rust = { version = "0.4", optional = true }
+paste =  { version = "1", optional = true }
 
 
 [features]
-std = ["async-std", "futures", "nom", "xmas-elf", "shellexpand", "yaml-rust"]
+std = ["async-std", "futures", "nom", "xmas-elf", "shellexpand", "yaml-rust", "paste"]
 no_std = ["spin", "nb"]
 ptr64 = []
 ptr32 = []
