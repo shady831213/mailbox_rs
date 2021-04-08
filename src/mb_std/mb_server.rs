@@ -5,7 +5,7 @@ use crate::mb_rpcs::*;
 use async_std::prelude::*;
 use async_std::task::Context;
 use async_std::task::Poll;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -14,14 +14,27 @@ pub trait MBPtrReader: Read {
     fn read_sized<T: Sized>(&mut self, data: &mut T);
 }
 
+pub trait MBPtrWriter: Write {
+    fn write_slice<T: Sized + Copy>(&mut self, data: &[T]);
+    fn write_sized<T: Sized>(&mut self, data: &T);
+}
+
 pub trait MBPtrResolver {
     type READER: MBPtrReader;
+    type WRITER: MBPtrWriter;
     fn reader<T: Sized>(&self, ptr: *const T) -> Self::READER;
+    fn writer<T: Sized>(&self, ptr: *mut T) -> Self::WRITER;
     fn read_slice<T: Sized + Copy>(&self, ptr: *const T, data: &mut [T]) {
         self.reader(ptr).read_slice(data)
     }
     fn read_sized<T: Sized>(&self, ptr: *const T, data: &mut T) {
         self.reader(ptr).read_sized(data)
+    }
+    fn write_slice<T: Sized + Copy>(&self, ptr: *mut T, data: &[T]) {
+        self.writer(ptr).write_slice(data)
+    }
+    fn write_sized<T: Sized>(&self, ptr: *mut T, data: &T) {
+        self.writer(ptr).write_sized(data)
     }
     fn read_str(&self, str_args: &MBStringArgs) -> Result<String, String> {
         let str_len = str_args.len as usize;
@@ -45,27 +58,37 @@ pub trait MBPtrResolver {
     }
 }
 
-struct MBServerInner<RA: MBPtrReader, R: MBPtrResolver<READER = RA>> {
+struct MBServerInner<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>> {
     exit: MBExit,
     print: MBPrint<'static>,
     cprint: MBCPrint<'static>,
-    other_cmds: Mutex<Vec<Box<dyn CustomAsycRPC<RA, R>>>>,
+    memmove: MBMemMove<'static>,
+    memset: MBMemSet<'static>,
+    memcmp: MBMemCmp<'static>,
+    other_cmds: Mutex<Vec<Box<dyn CustomAsycRPC<RA, WA, R>>>>,
 }
-impl<RA: MBPtrReader, R: MBPtrResolver<READER = RA>> MBServerInner<RA, R> {
-    fn new() -> MBServerInner<RA, R> {
+impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>>
+    MBServerInner<RA, WA, R>
+{
+    fn new() -> MBServerInner<RA, WA, R> {
         MBServerInner {
             exit: MBExit,
             print: MBPrint::new(),
             cprint: MBCPrint::new(),
+            memmove: MBMemMove::new(),
+            memset: MBMemSet::new(),
+            memcmp: MBMemCmp::new(),
             other_cmds: Mutex::new(vec![]),
         }
     }
-    fn add_cmd<C: CustomAsycRPC<RA, R> + 'static>(&self, cmd: C) {
+    fn add_cmd<C: CustomAsycRPC<RA, WA, R> + 'static>(&self, cmd: C) {
         self.other_cmds.lock().unwrap().push(Box::new(cmd));
     }
 }
 
-impl<RA: MBPtrReader, R: MBPtrResolver<READER = RA>> MBAsyncRPC<RA, R> for MBServerInner<RA, R> {
+impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>>
+    MBAsyncRPC<RA, WA, R> for MBServerInner<RA, WA, R>
+{
     fn poll_cmd(
         &self,
         server_name: &str,
@@ -77,6 +100,9 @@ impl<RA: MBPtrReader, R: MBPtrResolver<READER = RA>> MBAsyncRPC<RA, R> for MBSer
             MBAction::EXIT => self.exit.poll_cmd(server_name, r, &req, cx),
             MBAction::PRINT => self.print.poll_cmd(server_name, r, &req, cx),
             MBAction::CPRINT => self.cprint.poll_cmd(server_name, r, &req, cx),
+            MBAction::MEMMOVE => self.memmove.poll_cmd(server_name, r, &req, cx),
+            MBAction::MEMSET => self.memset.poll_cmd(server_name, r, &req, cx),
+            MBAction::MEMCMP => self.memcmp.poll_cmd(server_name, r, &req, cx),
             MBAction::OTHER => {
                 let other_cmds = self.other_cmds.lock().unwrap();
                 for cmd in other_cmds.iter() {
@@ -128,19 +154,61 @@ impl Read for MBLocalPtrReader {
     }
 }
 
+pub struct MBLocalPtrWriter {
+    ptr: *mut u8,
+}
+impl MBLocalPtrWriter {
+    fn new(ptr: *mut u8) -> MBLocalPtrWriter {
+        MBLocalPtrWriter { ptr }
+    }
+}
+impl MBPtrWriter for MBLocalPtrWriter {
+    fn write_slice<T: Sized + Copy>(&mut self, data: &[T]) {
+        unsafe {
+            std::slice::from_raw_parts_mut(self.ptr as *mut T, data.len())
+                .copy_from_slice(std::slice::from_raw_parts(data.as_ptr(), data.len()))
+        }
+    }
+    fn write_sized<T: Sized>(&mut self, data: &T) {
+        unsafe {
+            std::slice::from_raw_parts_mut(self.ptr, std::mem::size_of::<T>()).copy_from_slice(
+                std::slice::from_raw_parts(data as *const T as *const u8, std::mem::size_of::<T>()),
+            )
+        }
+    }
+}
+
+impl Write for MBLocalPtrWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let len = buf.len();
+        unsafe {
+            std::slice::from_raw_parts_mut(self.ptr, len)
+                .copy_from_slice(std::slice::from_raw_parts(buf.as_ptr(), len))
+        }
+        Ok(len)
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 #[derive(Default)]
 pub struct MBLocalPtrResolver;
 impl MBPtrResolver for MBLocalPtrResolver {
     type READER = MBLocalPtrReader;
+    type WRITER = MBLocalPtrWriter;
     fn reader<T: Sized>(&self, ptr: *const T) -> Self::READER {
         MBLocalPtrReader::new(ptr as *const u8)
+    }
+    fn writer<T: Sized>(&self, ptr: *mut T) -> Self::WRITER {
+        MBLocalPtrWriter::new(ptr as *mut u8)
     }
 }
 
 pub struct MBLocalServer {
     name: String,
     resolver: MBLocalPtrResolver,
-    inner: MBServerInner<MBLocalPtrReader, MBLocalPtrResolver>,
+    inner: MBServerInner<MBLocalPtrReader, MBLocalPtrWriter, MBLocalPtrResolver>,
 }
 
 impl MBLocalServer {
@@ -157,7 +225,9 @@ impl MBLocalServer {
     ) -> impl Future<Output = Option<MBRespEntry>> + 'a {
         self.inner.do_cmd(self.name.as_str(), &self.resolver, req)
     }
-    pub fn add_cmd<C: CustomAsycRPC<MBLocalPtrReader, MBLocalPtrResolver> + 'static>(
+    pub fn add_cmd<
+        C: CustomAsycRPC<MBLocalPtrReader, MBLocalPtrWriter, MBLocalPtrResolver> + 'static,
+    >(
         &self,
         cmd: C,
     ) {
@@ -165,19 +235,19 @@ impl MBLocalServer {
     }
 }
 
-pub struct MBSMPtrReader<SM: MBShareMem> {
+pub struct MBSMPtrReaderWrtier<SM: MBShareMem> {
     ptr: MBPtrT,
     sm: Arc<Mutex<SM>>,
 }
-impl<SM: MBShareMem> MBSMPtrReader<SM> {
-    fn new(ptr: MBPtrT, sm: &Arc<Mutex<SM>>) -> MBSMPtrReader<SM> {
-        MBSMPtrReader {
+impl<SM: MBShareMem> MBSMPtrReaderWrtier<SM> {
+    fn new(ptr: MBPtrT, sm: &Arc<Mutex<SM>>) -> MBSMPtrReaderWrtier<SM> {
+        MBSMPtrReaderWrtier {
             ptr,
             sm: sm.clone(),
         }
     }
 }
-impl<SM: MBShareMem> MBPtrReader for MBSMPtrReader<SM> {
+impl<SM: MBShareMem> MBPtrReader for MBSMPtrReaderWrtier<SM> {
     fn read_slice<T: Sized + Copy>(&mut self, data: &mut [T]) {
         self.sm.lock().unwrap().read_slice(self.ptr, data);
     }
@@ -186,9 +256,27 @@ impl<SM: MBShareMem> MBPtrReader for MBSMPtrReader<SM> {
     }
 }
 
-impl<SM: MBShareMem> Read for MBSMPtrReader<SM> {
+impl<SM: MBShareMem> Read for MBSMPtrReaderWrtier<SM> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         Ok(self.sm.lock().unwrap().read(self.ptr, buf))
+    }
+}
+
+impl<SM: MBShareMem> MBPtrWriter for MBSMPtrReaderWrtier<SM> {
+    fn write_slice<T: Sized + Copy>(&mut self, data: &[T]) {
+        self.sm.lock().unwrap().write_slice(self.ptr, data);
+    }
+    fn write_sized<T: Sized>(&mut self, data: &T) {
+        self.sm.lock().unwrap().write_sized(self.ptr, data);
+    }
+}
+
+impl<SM: MBShareMem> Write for MBSMPtrReaderWrtier<SM> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        Ok(self.sm.lock().unwrap().write(self.ptr, buf))
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
     }
 }
 
@@ -201,16 +289,20 @@ impl<SM: MBShareMem> MBSMPtrResolver<SM> {
     }
 }
 impl<SM: MBShareMem> MBPtrResolver for MBSMPtrResolver<SM> {
-    type READER = MBSMPtrReader<SM>;
+    type READER = MBSMPtrReaderWrtier<SM>;
+    type WRITER = MBSMPtrReaderWrtier<SM>;
     fn reader<T: Sized>(&self, ptr: *const T) -> Self::READER {
-        MBSMPtrReader::new(ptr as MBPtrT, &self.sm)
+        MBSMPtrReaderWrtier::new(ptr as MBPtrT, &self.sm)
+    }
+    fn writer<T: Sized>(&self, ptr: *mut T) -> Self::WRITER {
+        MBSMPtrReaderWrtier::new(ptr as MBPtrT, &self.sm)
     }
 }
 
 pub struct MBSMServer<SM: MBShareMem> {
     name: String,
     resolver: MBSMPtrResolver<SM>,
-    inner: MBServerInner<MBSMPtrReader<SM>, MBSMPtrResolver<SM>>,
+    inner: MBServerInner<MBSMPtrReaderWrtier<SM>, MBSMPtrReaderWrtier<SM>, MBSMPtrResolver<SM>>,
 }
 
 impl<SM: MBShareMem> MBSMServer<SM> {
@@ -227,7 +319,10 @@ impl<SM: MBShareMem> MBSMServer<SM> {
     ) -> impl Future<Output = Option<MBRespEntry>> + 'a {
         self.inner.do_cmd(self.name.as_str(), &self.resolver, req)
     }
-    pub fn add_cmd<C: CustomAsycRPC<MBSMPtrReader<SM>, MBSMPtrResolver<SM>> + 'static>(
+    pub fn add_cmd<
+        C: CustomAsycRPC<MBSMPtrReaderWrtier<SM>, MBSMPtrReaderWrtier<SM>, MBSMPtrResolver<SM>>
+            + 'static,
+    >(
         &self,
         cmd: C,
     ) {

@@ -1,8 +1,14 @@
 mod c_print;
 mod exit;
+mod memcmp;
+mod memmove;
+mod memset;
 mod print;
 pub use c_print::*;
 pub use exit::*;
+pub use memcmp::*;
+pub use memmove::*;
+pub use memset::*;
 pub use print::*;
 
 use crate::mb_channel::*;
@@ -11,7 +17,7 @@ use async_std::prelude::*;
 use async_std::task::Context;
 use async_std::task::Poll;
 use std::pin::Pin;
-pub trait MBAsyncRPC<RA: MBPtrReader, R: MBPtrResolver<READER = RA>> {
+pub trait MBAsyncRPC<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>> {
     fn poll_cmd(
         &self,
         server_name: &str,
@@ -24,7 +30,7 @@ pub trait MBAsyncRPC<RA: MBPtrReader, R: MBPtrResolver<READER = RA>> {
         server_name: &'a str,
         r: &'a R,
         req: &'a MBReqEntry,
-    ) -> MBAsyncRPCFuture<'a, RA, R, Self>
+    ) -> MBAsyncRPCFuture<'a, RA, WA, R, Self>
     where
         Self: Sized,
     {
@@ -37,8 +43,11 @@ pub trait MBAsyncRPC<RA: MBPtrReader, R: MBPtrResolver<READER = RA>> {
     }
 }
 
-pub trait CustomAsycRPC<RA: MBPtrReader, R: MBPtrResolver<READER = RA>>:
-    MBAsyncRPC<RA, R> + Send
+pub trait CustomAsycRPC<
+    RA: MBPtrReader,
+    WA: MBPtrWriter,
+    R: MBPtrResolver<READER = RA, WRITER = WA>,
+>: MBAsyncRPC<RA, WA, R> + Send
 {
     fn is_me(&self, action: u32) -> bool;
 }
@@ -46,8 +55,9 @@ pub trait CustomAsycRPC<RA: MBPtrReader, R: MBPtrResolver<READER = RA>>:
 pub struct MBAsyncRPCFuture<
     'a,
     RA: MBPtrReader,
-    R: MBPtrResolver<READER = RA>,
-    RPC: MBAsyncRPC<RA, R>,
+    WA: MBPtrWriter,
+    R: MBPtrResolver<READER = RA, WRITER = WA>,
+    RPC: MBAsyncRPC<RA, WA, R>,
 > {
     rpc: &'a RPC,
     server_name: &'a str,
@@ -55,8 +65,13 @@ pub struct MBAsyncRPCFuture<
     req: &'a MBReqEntry,
 }
 
-impl<'a, RA: MBPtrReader, R: MBPtrResolver<READER = RA>, RPC: MBAsyncRPC<RA, R>> Future
-    for MBAsyncRPCFuture<'a, RA, R, RPC>
+impl<
+        'a,
+        RA: MBPtrReader,
+        WA: MBPtrWriter,
+        R: MBPtrResolver<READER = RA, WRITER = WA>,
+        RPC: MBAsyncRPC<RA, WA, R>,
+    > Future for MBAsyncRPCFuture<'a, RA, WA, R, RPC>
 {
     type Output = Option<MBRespEntry>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {

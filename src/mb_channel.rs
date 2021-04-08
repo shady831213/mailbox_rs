@@ -12,6 +12,9 @@ pub enum MBAction {
     EXIT = 1,
     PRINT = 2,
     CPRINT = 3,
+    MEMMOVE = 4,
+    MEMSET = 5,
+    MEMCMP = 6,
     OTHER = 0x80000000,
 }
 

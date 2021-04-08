@@ -7,7 +7,9 @@ use async_std::prelude::*;
 use async_std::task::Context;
 use async_std::task::Poll;
 
-impl<'a, RA: MBPtrReader, R: MBPtrResolver<READER = RA>> MBAsyncRPC<RA, R> for MBPrint<'a> {
+impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>>
+    MBAsyncRPC<RA, WA, R> for MBPrint<'a>
+{
     fn poll_cmd(
         &self,
         server_name: &str,

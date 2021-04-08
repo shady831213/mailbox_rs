@@ -1,6 +1,12 @@
-mod exit;
-mod print;
 mod c_print;
-pub use exit::*;
-pub use print::*;
+mod exit;
+mod memcmp;
+mod memmove;
+mod memset;
+mod print;
 pub use c_print::*;
+pub use exit::*;
+pub use memcmp::*;
+pub use memmove::*;
+pub use memset::*;
+pub use print::*;

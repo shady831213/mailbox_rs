@@ -170,7 +170,9 @@ mod tests {
     }
 
     struct MyCustomRPC;
-    impl<RA: MBPtrReader, R: MBPtrResolver<READER = RA>> MBAsyncRPC<RA, R> for MyCustomRPC {
+    impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>>
+        MBAsyncRPC<RA, WA, R> for MyCustomRPC
+    {
         fn poll_cmd(
             &self,
             server_name: &str,
@@ -185,7 +187,9 @@ mod tests {
             Poll::Ready(Some(resp))
         }
     }
-    impl<RA: MBPtrReader, R: MBPtrResolver<READER = RA>> CustomAsycRPC<RA, R> for MyCustomRPC {
+    impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>>
+        CustomAsycRPC<RA, WA, R> for MyCustomRPC
+    {
         fn is_me(&self, action: u32) -> bool {
             action == 0x8
         }
@@ -224,6 +228,101 @@ mod tests {
                 for i in 0..20 {
                     println!("mb_custom:{}", mb_custom(&sender, i as u32).await);
                 }
+            });
+            async_std::task::spawn(async move {
+                loop {
+                    let req = receiver.recv_req().await;
+                    let mut resp = server.do_cmd(&req).await;
+                    if let Some(r) = resp.take() {
+                        receiver.send_resp(r).await;
+                    }
+                }
+            });
+            c.await;
+        })
+    }
+
+    #[test]
+    fn mb_memmove_test() {
+        let share_mem = Arc::new(Mutex::new(ShareMem::new(0, 1024)));
+        let channel = Arc::new(Mutex::new(MBAsyncChannel::new(MBChannelShareMem::new(
+            0, &share_mem,
+        ))));
+        let server = MBLocalServer::new("server");
+        let sender = MBAsyncSender::new(&channel);
+        let receiver = MBAsyncReceiver::new(&channel);
+        async_std::task::block_on(async {
+            let c = async_std::task::spawn(async move {
+                let mut buffer: [u8; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
+                let dest = buffer.as_mut_ptr() as MBPtrT + 2;
+                let src = buffer.as_ptr() as MBPtrT + 4;
+                mb_memmove(&sender, dest, src, 4).await;
+                println!("{:?}", buffer);
+                let expect: [u8; 8] = [1, 2, 5, 6, 7, 8, 7, 8];
+                assert_eq!(buffer, expect)
+            });
+            async_std::task::spawn(async move {
+                loop {
+                    let req = receiver.recv_req().await;
+                    let mut resp = server.do_cmd(&req).await;
+                    if let Some(r) = resp.take() {
+                        receiver.send_resp(r).await;
+                    }
+                }
+            });
+            c.await;
+        })
+    }
+
+    #[test]
+    fn mb_memset_test() {
+        let share_mem = Arc::new(Mutex::new(ShareMem::new(0, 1024)));
+        let channel = Arc::new(Mutex::new(MBAsyncChannel::new(MBChannelShareMem::new(
+            0, &share_mem,
+        ))));
+        let server = MBLocalServer::new("server");
+        let sender = MBAsyncSender::new(&channel);
+        let receiver = MBAsyncReceiver::new(&channel);
+        async_std::task::block_on(async {
+            let c = async_std::task::spawn(async move {
+                let mut buffer: [u8; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
+                let dest = buffer.as_mut_ptr() as MBPtrT + 2;
+                mb_memset(&sender, dest, 0x5a, 4).await;
+                println!("{:?}", buffer);
+                let expect: [u8; 8] = [1, 2, 0x5a, 0x5a, 0x5a, 0x5a, 7, 8];
+                assert_eq!(buffer, expect)
+            });
+            async_std::task::spawn(async move {
+                loop {
+                    let req = receiver.recv_req().await;
+                    let mut resp = server.do_cmd(&req).await;
+                    if let Some(r) = resp.take() {
+                        receiver.send_resp(r).await;
+                    }
+                }
+            });
+            c.await;
+        })
+    }
+
+    #[test]
+    fn mb_memcmp_test() {
+        let share_mem = Arc::new(Mutex::new(ShareMem::new(0, 1024)));
+        let channel = Arc::new(Mutex::new(MBAsyncChannel::new(MBChannelShareMem::new(
+            0, &share_mem,
+        ))));
+        let server = MBLocalServer::new("server");
+        let sender = MBAsyncSender::new(&channel);
+        let receiver = MBAsyncReceiver::new(&channel);
+        async_std::task::block_on(async {
+            let c = async_std::task::spawn(async move {
+                let buffer1: [u8; 8] = [8, 7, 6, 4, 5, 1, 2, 3];
+                let buffer2: [u8; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
+                let s1 = buffer1.as_ptr() as MBPtrT + 3;
+                let s2 = buffer2.as_ptr() as MBPtrT + 3;
+                let ret = mb_memcmp(&sender, s1, s2, 4).await;
+                println!("{:?}", ret);
+                assert_eq!(ret, -5)
             });
             async_std::task::spawn(async move {
                 loop {

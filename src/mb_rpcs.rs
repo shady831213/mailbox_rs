@@ -99,3 +99,95 @@ impl<'a> MBRpc for MBCPrint<'a> {
     }
     fn get_resp(&self, _: &MBRespEntry) -> Self::RESP {}
 }
+
+#[derive(Default, Debug)]
+#[repr(C)]
+pub struct MBMemMoveArgs {
+    pub dest: MBPtrT,
+    pub src: MBPtrT,
+    pub len: MBPtrT,
+}
+pub struct MBMemMove<'a> {
+    _marker: PhantomData<&'a u8>,
+}
+impl<'a> MBMemMove<'a> {
+    pub fn new() -> MBMemMove<'a> {
+        MBMemMove {
+            _marker: PhantomData,
+        }
+    }
+}
+impl<'a> MBRpc for MBMemMove<'a> {
+    type REQ = &'a MBMemMoveArgs;
+    type RESP = ();
+    fn put_req(&self, req: Self::REQ, entry: &mut MBReqEntry) {
+        entry.words = 3;
+        entry.action = MBAction::MEMMOVE;
+        entry.args[0] = req.dest;
+        entry.args[1] = req.src;
+        entry.args[2] = req.len;
+    }
+    fn get_resp(&self, _: &MBRespEntry) -> Self::RESP {}
+}
+
+#[derive(Default, Debug)]
+#[repr(C)]
+pub struct MBMemSetArgs {
+    pub dest: MBPtrT,
+    pub data: MBPtrT,
+    pub len: MBPtrT,
+}
+pub struct MBMemSet<'a> {
+    _marker: PhantomData<&'a u8>,
+}
+impl<'a> MBMemSet<'a> {
+    pub fn new() -> MBMemSet<'a> {
+        MBMemSet {
+            _marker: PhantomData,
+        }
+    }
+}
+impl<'a> MBRpc for MBMemSet<'a> {
+    type REQ = &'a MBMemSetArgs;
+    type RESP = ();
+    fn put_req(&self, req: Self::REQ, entry: &mut MBReqEntry) {
+        entry.words = 3;
+        entry.action = MBAction::MEMSET;
+        entry.args[0] = req.dest;
+        entry.args[1] = req.data;
+        entry.args[2] = req.len;
+    }
+    fn get_resp(&self, _: &MBRespEntry) -> Self::RESP {}
+}
+
+#[derive(Default, Debug)]
+#[repr(C)]
+pub struct MBMemCmpArgs {
+    pub s1: MBPtrT,
+    pub s2: MBPtrT,
+    pub len: MBPtrT,
+}
+pub struct MBMemCmp<'a> {
+    _marker: PhantomData<&'a u8>,
+}
+impl<'a> MBMemCmp<'a> {
+    pub fn new() -> MBMemCmp<'a> {
+        MBMemCmp {
+            _marker: PhantomData,
+        }
+    }
+}
+impl<'a> MBRpc for MBMemCmp<'a> {
+    type REQ = &'a MBMemCmpArgs;
+    type RESP = i32;
+    fn put_req(&self, req: Self::REQ, entry: &mut MBReqEntry) {
+        entry.words = 3;
+        entry.action = MBAction::MEMCMP;
+        entry.args[0] = req.s1;
+        entry.args[1] = req.s2;
+        entry.args[2] = req.len;
+    }
+    fn get_resp(&self, resp: &MBRespEntry) -> Self::RESP {
+        resp.rets as i32
+    }
+}

@@ -58,7 +58,7 @@ enum MBCStringToken {
     ORIGIN(String),
 }
 impl MBCStringToken {
-    fn get_string<RA: MBPtrReader, R: MBPtrResolver<READER = RA>>(
+    fn get_string<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>>(
         &self,
         arg: &mut Iter<MBPtrT>,
         r: &R,
@@ -120,7 +120,12 @@ fn parse_symbol<'a>(s: &'a str) -> IResult<&'a str, MBCStringToken> {
     alt((parse_escaped, parse_fmt))(s)
 }
 
-struct MBCStringFmtParser<'a, RA: MBPtrReader, R: MBPtrResolver<READER = RA>> {
+struct MBCStringFmtParser<
+    'a,
+    RA: MBPtrReader,
+    WA: MBPtrWriter,
+    R: MBPtrResolver<READER = RA, WRITER = WA>,
+> {
     buffer: String,
     fmt_str: String,
     file: String,
@@ -129,11 +134,13 @@ struct MBCStringFmtParser<'a, RA: MBPtrReader, R: MBPtrResolver<READER = RA>> {
     r: &'a R,
 }
 
-impl<'a, RA: MBPtrReader, R: MBPtrResolver<READER = RA>> MBCStringFmtParser<'a, RA, R> {
+impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>>
+    MBCStringFmtParser<'a, RA, WA, R>
+{
     fn new(
         args: &'a MBCStringArgs,
         r: &'a R,
-    ) -> Result<MBCStringFmtParser<'a, RA, R>, MBCFmtError> {
+    ) -> Result<MBCStringFmtParser<'a, RA, WA, R>, MBCFmtError> {
         let pos = args.pos as u32;
         let file = r.read_c_str(args.file as *const u8).map_err(|e| {
             let fmt_e = MBCParseError::IOError(e);
@@ -202,7 +209,9 @@ impl<'a, RA: MBPtrReader, R: MBPtrResolver<READER = RA>> MBCStringFmtParser<'a, 
     }
 }
 
-impl<'a, RA: MBPtrReader, R: MBPtrResolver<READER = RA>> MBAsyncRPC<RA, R> for MBCPrint<'a> {
+impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>>
+    MBAsyncRPC<RA, WA, R> for MBCPrint<'a>
+{
     fn poll_cmd(
         &self,
         server_name: &str,
