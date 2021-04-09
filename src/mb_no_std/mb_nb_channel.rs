@@ -8,11 +8,21 @@ extern "C" {
     fn __mb_save_flag() -> MBPtrT;
     fn __mb_restore_flag(flag: MBPtrT);
 }
-pub struct MBNbRefSender<CH: 'static + MBChannelIf>(Mutex<&'static mut CH>);
 
-impl<CH: 'static + MBChannelIf> MBNbRefSender<CH> {
-    pub fn new(ch: &'static mut CH) -> MBNbRefSender<CH> {
-        MBNbRefSender(Mutex::new(ch))
+pub trait MBNbSender {
+    fn send_nb<REQ: Copy, RPC: MBRpc<REQ = REQ>>(&mut self, rpc: &RPC, req: REQ);
+    fn send<REQ: Copy, RESP, RPC: MBRpc<REQ = REQ, RESP = RESP>>(
+        &mut self,
+        rpc: &RPC,
+        req: REQ,
+    ) -> RESP;
+}
+
+pub struct MBNbLockRefSender<CH: 'static + MBChannelIf>(Mutex<&'static mut CH>);
+
+impl<CH: 'static + MBChannelIf> MBNbLockRefSender<CH> {
+    pub const fn new(ch: &'static mut CH) -> MBNbLockRefSender<CH> {
+        MBNbLockRefSender(Mutex::new(ch))
     }
     fn try_send<REQ: Copy, RPC: MBRpc<REQ = REQ>>(
         &self,
@@ -37,15 +47,17 @@ impl<CH: 'static + MBChannelIf> MBNbRefSender<CH> {
         let ret = ch.get_resp(rpc);
         Ok(ret)
     }
+}
 
-    pub fn send_nb<REQ: Copy, RPC: MBRpc<REQ = REQ>>(&self, rpc: &RPC, req: REQ) {
+impl<CH: 'static + MBChannelIf> MBNbSender for MBNbLockRefSender<CH> {
+    fn send_nb<REQ: Copy, RPC: MBRpc<REQ = REQ>>(&mut self, rpc: &RPC, req: REQ) {
         let flag = unsafe { __mb_save_flag() };
         let mut ch = self.0.lock();
         block!(self.try_send(rpc, req, &mut ch)).unwrap();
         unsafe { __mb_restore_flag(flag) };
     }
-    pub fn send<REQ: Copy, RESP, RPC: MBRpc<REQ = REQ, RESP = RESP>>(
-        &self,
+    fn send<REQ: Copy, RESP, RPC: MBRpc<REQ = REQ, RESP = RESP>>(
+        &mut self,
         rpc: &RPC,
         req: REQ,
     ) -> RESP {
@@ -53,6 +65,51 @@ impl<CH: 'static + MBChannelIf> MBNbRefSender<CH> {
         let mut ch = self.0.lock();
         block!(self.try_send(rpc, req, &mut ch)).unwrap();
         let resp = block!(self.try_recv(rpc, &mut ch)).unwrap();
+        unsafe { __mb_restore_flag(flag) };
+        resp
+    }
+}
+
+pub struct MBNbRefSender<CH: 'static + MBChannelIf>(&'static mut CH);
+
+impl<CH: 'static + MBChannelIf> MBNbRefSender<CH> {
+    pub const fn new(ch: &'static mut CH) -> MBNbRefSender<CH> {
+        MBNbRefSender(ch)
+    }
+    fn try_send<REQ: Copy, RPC: MBRpc<REQ = REQ>>(
+        &mut self,
+        rpc: &RPC,
+        req: REQ,
+    ) -> nb::Result<(), ()> {
+        if !self.0.req_can_put() {
+            return Err(nb::Error::WouldBlock);
+        }
+        self.0.put_req(rpc, req);
+        Ok(())
+    }
+    fn try_recv<RESP, RPC: MBRpc<RESP = RESP>>(&mut self, rpc: &RPC) -> nb::Result<RESP, ()> {
+        if !self.0.resp_can_get() {
+            return Err(nb::Error::WouldBlock);
+        }
+        let ret = self.0.get_resp(rpc);
+        Ok(ret)
+    }
+}
+
+impl<CH: 'static + MBChannelIf> MBNbSender for MBNbRefSender<CH> {
+    fn send_nb<REQ: Copy, RPC: MBRpc<REQ = REQ>>(&mut self, rpc: &RPC, req: REQ) {
+        let flag = unsafe { __mb_save_flag() };
+        block!(self.try_send(rpc, req)).unwrap();
+        unsafe { __mb_restore_flag(flag) };
+    }
+    fn send<REQ: Copy, RESP, RPC: MBRpc<REQ = REQ, RESP = RESP>>(
+        &mut self,
+        rpc: &RPC,
+        req: REQ,
+    ) -> RESP {
+        let flag = unsafe { __mb_save_flag() };
+        block!(self.try_send(rpc, req)).unwrap();
+        let resp = block!(self.try_recv(rpc)).unwrap();
         unsafe { __mb_restore_flag(flag) };
         resp
     }

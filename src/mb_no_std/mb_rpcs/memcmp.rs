@@ -1,8 +1,8 @@
 use crate::mb_channel::*;
 use crate::mb_no_std::mb_nb_channel::*;
 use crate::mb_rpcs::*;
-pub fn mb_memcmp<CH: MBChannelIf>(
-    sender: &MBNbRefSender<CH>,
+pub fn mb_memcmp<SENDER: MBNbSender>(
+    sender: &mut SENDER,
     s1: MBPtrT,
     s2: MBPtrT,
     len: MBPtrT,

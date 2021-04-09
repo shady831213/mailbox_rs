@@ -1,8 +1,8 @@
 use crate::mb_channel::*;
 use crate::mb_no_std::mb_nb_channel::*;
 use crate::mb_rpcs::*;
-pub fn mb_cprint<CH: MBChannelIf>(
-    sender: &MBNbRefSender<CH>,
+pub fn mb_cprint<SENDER: MBNbSender>(
+    sender: &mut SENDER,
     fmt_str: *const u8,
     file: *const u8,
     pos: u32,
