@@ -1,11 +1,11 @@
 pub extern crate paste;
 #[macro_export]
 macro_rules! export_mb_backdoor_dpi {
-    ($spaces:ident) => {
-        export_mb_backdoor_dpi!(@ u8, $spaces);
-        export_mb_backdoor_dpi!(@ u16, $spaces);
-        export_mb_backdoor_dpi!(@ u32, $spaces);
-        export_mb_backdoor_dpi!(@ u64, $spaces);
+    ($mailbox:ident) => {
+        export_mb_backdoor_dpi!(@ u8, $mailbox);
+        export_mb_backdoor_dpi!(@ u16, $mailbox);
+        export_mb_backdoor_dpi!(@ u32, $mailbox);
+        export_mb_backdoor_dpi!(@ u64, $mailbox);
         #[no_mangle]
         extern "C" fn mb_backdoor_write_string(
             space_name: *const std::os::raw::c_char,
@@ -13,8 +13,8 @@ macro_rules! export_mb_backdoor_dpi {
             data: *const std::os::raw::c_char,
         ) {
             let space_name = unsafe { std::ffi::CStr::from_ptr(space_name) }.to_str().unwrap();
-            let mut space = $spaces
-                .get(space_name)
+            let mut space = $mailbox
+                .get_space(space_name)
                 .expect(format!("space {} does not exist!", space_name).as_str())
                 .lock()
                 .unwrap();
@@ -29,8 +29,8 @@ macro_rules! export_mb_backdoor_dpi {
             data: *mut *const std::os::raw::c_char,
         ) {
             let space_name = unsafe { std::ffi::CStr::from_ptr(space_name) }.to_str().unwrap();
-            let space = $spaces
-                .get(space_name)
+            let space = $mailbox
+                .get_space(space_name)
                 .expect(format!("space {} does not exist!", space_name).as_str());
             let resolver = crate::mailbox_rs::mb_std::MBSMPtrResolver::new(space);
             let s = resolver.read_c_str(addr as *const u8).unwrap();
@@ -42,13 +42,13 @@ macro_rules! export_mb_backdoor_dpi {
             }
         }
     };
-    (@ $t:ty, $spaces:ident) => {
+    (@ $t:ty, $mailbox:ident) => {
         crate::mailbox_rs::mb_std::paste::paste!{
             #[no_mangle]
             extern "C" fn [<mb_backdoor_write_ $t>](space_name: *const std::os::raw::c_char, addr: u64, data: $t) {
                 let space_name = unsafe { std::ffi::CStr::from_ptr(space_name) }.to_str().unwrap();
-                let mut space = $spaces
-                    .get(space_name)
+                let mut space = $mailbox
+                    .get_space(space_name)
                     .expect(format!("space {} does not exist!", space_name).as_str())
                     .lock()
                     .unwrap();
@@ -61,8 +61,8 @@ macro_rules! export_mb_backdoor_dpi {
                 data: *mut $t,
             ) {
                 let space_name = unsafe { std::ffi::CStr::from_ptr(space_name) }.to_str().unwrap();
-                let space = $spaces
-                    .get(space_name)
+                let space = $mailbox
+                    .get_space(space_name)
                     .expect(format!("space {} does not exist!", space_name).as_str())
                     .lock()
                     .unwrap();

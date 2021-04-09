@@ -95,14 +95,18 @@ pub trait MBShareMemParser: Default {
 
 pub struct MBChannelShareMemSys<SM: MBShareMem> {
     chs: HashMap<String, Arc<Mutex<MBAsyncChannel<MBChannelShareMem<SM>>>>>,
+    space_map: HashMap<String, Arc<Mutex<SM>>>,
 }
 impl<SM: MBShareMem> MBChannelShareMemSys<SM> {
-    fn new() -> MBChannelShareMemSys<SM> {
+    fn new(space_map: HashMap<String, Arc<Mutex<SM>>>) -> MBChannelShareMemSys<SM> {
         MBChannelShareMemSys {
             chs: HashMap::new(),
+            space_map,
         }
     }
-
+    pub fn get_space(&self, name: &str) -> Option<&Arc<Mutex<SM>>> {
+        self.space_map.get(name)
+    }
     pub fn wake<F: Fn() + 'static>(&self, tick: F) -> impl Future<Output = ()> + '_ {
         async move {
             loop {
@@ -120,14 +124,13 @@ impl<SM: MBShareMem> MBChannelShareMemSys<SM> {
 
     pub fn serve<F: Fn(&MBSMServer<SM>)>(
         &self,
-        space_map: &HashMap<String, Arc<Mutex<SM>>>,
         server_callback: F,
     ) -> impl Future<Output = Vec<()>> + '_ {
         let futures = self
             .chs
             .iter()
             .map(|ch| {
-                let server = MBSMServer::new(ch.0, space_map.get(ch.0).unwrap());
+                let server = MBSMServer::new(ch.0, self.space_map.get(ch.0).unwrap());
                 server_callback(&server);
                 let receiver = MBAsyncReceiver::new(ch.1);
                 async move {
@@ -150,24 +153,27 @@ pub struct MBChannelShareMemBuilder<SM: MBShareMem> {
 }
 
 impl<SM: MBShareMem> MBChannelShareMemBuilder<SM> {
-    pub fn new(file: &str) -> Result<MBChannelShareMemBuilder<SM>, String> {
+    pub fn new(
+        file: &str,
+        space_map: HashMap<String, Arc<Mutex<SM>>>,
+    ) -> Result<MBChannelShareMemBuilder<SM>, String> {
         let file_expand = shellexpand::full(file)
             .map_err(|e| e.to_string())?
             .to_string();
         let s = fs::read_to_string(file_expand).map_err(|e| e.to_string())?;
-        Self::from_str(&s)
+        Self::from_str(&s, space_map)
     }
-    pub fn from_str(s: &str) -> Result<MBChannelShareMemBuilder<SM>, String> {
+    pub fn from_str(
+        s: &str,
+        space_map: HashMap<String, Arc<Mutex<SM>>>,
+    ) -> Result<MBChannelShareMemBuilder<SM>, String> {
         Ok(MBChannelShareMemBuilder {
             docs: YamlLoader::load_from_str(s).map_err(|e| e.to_string())?,
-            sys: MBChannelShareMemSys::<SM>::new(),
+            sys: MBChannelShareMemSys::<SM>::new(space_map),
         })
     }
 
-    pub fn build(
-        mut self,
-        space_map: &HashMap<String, Arc<Mutex<SM>>>,
-    ) -> Result<MBChannelShareMemSys<SM>, String> {
+    pub fn build(mut self) -> Result<MBChannelShareMemSys<SM>, String> {
         if let Yaml::Hash(ref chs) = self.docs[0] {
             for (key, ch) in chs.iter() {
                 let k = key.as_str().unwrap();
@@ -177,7 +183,7 @@ impl<SM: MBShareMem> MBChannelShareMemBuilder<SM> {
                 let space_k = ch["space"]
                     .as_str()
                     .ok_or(format!("{:?}: No space found!", k))?;
-                let space = space_map.get(space_k).ok_or(format!(
+                let space = self.sys.get_space(space_k).ok_or(format!(
                     "{:?}: space {:?} not found in current map!",
                     k, space_k
                 ))?;
@@ -304,9 +310,9 @@ mod test {
             .unwrap()
             .build_spaces()
             .unwrap();
-        MBChannelShareMemBuilder::<MBShareMemSpace<MyShareMem>>::from_str(s)
+        MBChannelShareMemBuilder::<MBShareMemSpace<MyShareMem>>::from_str(s, spaces)
             .unwrap()
-            .build(&spaces)
+            .build()
             .unwrap();
     }
 }
