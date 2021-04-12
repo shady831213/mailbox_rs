@@ -96,17 +96,23 @@ pub trait MBShareMemParser: Default {
 pub struct MBChannelShareMemSys<SM: MBShareMem> {
     chs: HashMap<String, Arc<Mutex<MBAsyncChannel<MBChannelShareMem<SM>>>>>,
     space_map: HashMap<String, Arc<Mutex<SM>>>,
+    ch_space_map: HashMap<String, String>,
 }
 impl<SM: MBShareMem> MBChannelShareMemSys<SM> {
     fn new(space_map: HashMap<String, Arc<Mutex<SM>>>) -> MBChannelShareMemSys<SM> {
         MBChannelShareMemSys {
             chs: HashMap::new(),
             space_map,
+            ch_space_map: HashMap::new(),
         }
     }
     pub fn get_space(&self, name: &str) -> Option<&Arc<Mutex<SM>>> {
         self.space_map.get(name)
     }
+    pub fn get_ch_space_name(&self, ch_name: &str) -> Option<&str> {
+        self.ch_space_map.get(ch_name).map(|s| s.as_str())
+    }
+
     pub fn wake<F: Fn() + 'static>(&self, tick: F) -> impl Future<Output = ()> + '_ {
         async move {
             loop {
@@ -201,6 +207,9 @@ impl<SM: MBShareMem> MBChannelShareMemBuilder<SM> {
                 self.sys
                     .chs
                     .insert(k.to_string(), Arc::new(Mutex::new(MBAsyncChannel::new(ch))));
+                self.sys
+                    .ch_space_map
+                    .insert(k.to_string(), space_k.to_string());
             }
             Ok(self.sys)
         } else {

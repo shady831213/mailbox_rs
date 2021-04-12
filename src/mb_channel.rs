@@ -15,6 +15,7 @@ pub enum MBAction {
     MEMMOVE = 4,
     MEMSET = 5,
     MEMCMP = 6,
+    SVCALL = 7,
     OTHER = 0x80000000,
 }
 

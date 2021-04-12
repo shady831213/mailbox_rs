@@ -4,12 +4,14 @@ mod memcmp;
 mod memmove;
 mod memset;
 mod print;
+mod svcall;
 pub use c_print::*;
 pub use exit::*;
 pub use memcmp::*;
 pub use memmove::*;
 pub use memset::*;
 pub use print::*;
+pub use svcall::*;
 
 use crate::mb_channel::*;
 use crate::mb_std::mb_server::*;

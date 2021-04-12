@@ -191,3 +191,45 @@ impl<'a> MBRpc for MBMemCmp<'a> {
         resp.rets as i32
     }
 }
+
+#[repr(u32)]
+pub enum MBSvCallStatus {
+    Ready = 0,
+    Pending = 1,
+}
+
+#[derive(Default, Debug)]
+#[repr(C)]
+pub struct MBSvCallArgs {
+    pub len: u32,                        // -> MBReq.words
+    pub method: MBPtrT,                  // -> MBReq.args[0]
+    pub args: [MBPtrT; MB_MAX_ARGS - 1], // -> MBReq.args[1..]
+}
+
+pub struct MBSvCall<'a> {
+    _marker: PhantomData<&'a u8>,
+}
+impl<'a> MBSvCall<'a> {
+    pub fn new() -> MBSvCall<'a> {
+        MBSvCall {
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<'a> MBRpc for MBSvCall<'a> {
+    type REQ = &'a MBSvCallArgs;
+    type RESP = MBPtrT;
+    fn put_req(&self, req: Self::REQ, entry: &mut MBReqEntry) {
+        entry.action = MBAction::SVCALL;
+        entry.words = req.len + 1;
+        entry.args[0] = req.method;
+        //can not use memcpy!
+        for (i, d) in req.args[0..req.len as usize].iter().enumerate() {
+            entry.args[1 + i] = *d
+        }
+    }
+    fn get_resp(&self, resp: &MBRespEntry) -> Self::RESP {
+        resp.rets
+    }
+}

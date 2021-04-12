@@ -65,6 +65,7 @@ struct MBServerInner<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER =
     memmove: MBMemMove<'static>,
     memset: MBMemSet<'static>,
     memcmp: MBMemCmp<'static>,
+    svcall: MBSvCall<'static>,
     other_cmds: Mutex<Vec<Box<dyn CustomAsycRPC<RA, WA, R>>>>,
 }
 impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>>
@@ -78,6 +79,7 @@ impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA
             memmove: MBMemMove::new(),
             memset: MBMemSet::new(),
             memcmp: MBMemCmp::new(),
+            svcall: MBSvCall::new(),
             other_cmds: Mutex::new(vec![]),
         }
     }
@@ -103,6 +105,7 @@ impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA
             MBAction::MEMMOVE => self.memmove.poll_cmd(server_name, r, &req, cx),
             MBAction::MEMSET => self.memset.poll_cmd(server_name, r, &req, cx),
             MBAction::MEMCMP => self.memcmp.poll_cmd(server_name, r, &req, cx),
+            MBAction::SVCALL => self.svcall.poll_cmd(server_name, r, &req, cx),
             MBAction::OTHER => {
                 let other_cmds = self.other_cmds.lock().unwrap();
                 for cmd in other_cmds.iter() {
