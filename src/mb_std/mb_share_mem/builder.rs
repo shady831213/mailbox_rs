@@ -112,7 +112,9 @@ impl<SM: MBShareMem> MBChannelShareMemSys<SM> {
     pub fn get_ch_space_name(&self, ch_name: &str) -> Option<&str> {
         self.ch_space_map.get(ch_name).map(|s| s.as_str())
     }
-
+    pub fn mailboxes(&self) -> &HashMap<String, Arc<Mutex<MBAsyncChannel<MBChannelShareMem<SM>>>>> {
+        &self.chs
+    }
     pub fn wake<F: Fn() + 'static>(&self, tick: F) -> impl Future<Output = ()> + '_ {
         async move {
             loop {
