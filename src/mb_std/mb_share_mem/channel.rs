@@ -159,7 +159,7 @@ impl<SM: MBShareMem> MBChannelShareMem<SM> {
         if load {
             mem.lock().unwrap().load_elf_with(file, f).unwrap();
         } else {
-            use super::utils::process_elf;
+            use crate::mb_std::utils::process_elf;
             process_elf(file, f).unwrap();
         }
         MBChannelShareMem::new(base, mem)

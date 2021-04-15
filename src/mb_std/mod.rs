@@ -4,17 +4,24 @@ pub extern crate shellexpand;
 pub extern crate xmas_elf;
 mod macros;
 mod mb_async_channel;
+mod mb_builder;
+mod mb_fs;
+mod mb_ptr_resolver;
 mod mb_rpcs;
 mod mb_server;
 mod mb_share_mem;
+mod utils;
 pub use macros::*;
 pub use mb_async_channel::*;
+pub use mb_builder::*;
+pub use mb_ptr_resolver::*;
 pub use mb_rpcs::*;
 pub use mb_server::*;
 pub use mb_share_mem::*;
 #[cfg(test)]
 mod tests {
     use super::mb_async_channel::*;
+    use super::mb_ptr_resolver::*;
     use super::mb_rpcs::*;
     use super::mb_server::*;
     use crate::mb_channel::*;

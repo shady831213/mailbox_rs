@@ -14,7 +14,7 @@ pub use print::*;
 pub use svcall::*;
 
 use crate::mb_channel::*;
-use crate::mb_std::mb_server::*;
+use crate::mb_std::mb_ptr_resolver::*;
 use async_std::prelude::*;
 use async_std::task::Context;
 use async_std::task::Poll;

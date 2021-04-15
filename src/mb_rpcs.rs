@@ -233,3 +233,8 @@ impl<'a> MBRpc for MBSvCall<'a> {
         resp.rets
     }
 }
+
+pub const MB_FILE_READ: u32 = 0x1;
+pub const MB_FILE_WRITE: u32 = 0x2;
+pub const MB_FILE_APPEND: u32 = 0x4;
+pub const MB_FILE_TRUNC: u32 = 0x8;

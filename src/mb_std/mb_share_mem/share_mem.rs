@@ -2,7 +2,7 @@ use crate::mb_channel::*;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use super::utils::*;
+use crate::mb_std::utils::*;
 use xmas_elf::program;
 use xmas_elf::ElfFile;
 
