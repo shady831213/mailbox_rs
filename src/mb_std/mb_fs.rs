@@ -313,7 +313,9 @@ mod test {
             let mut pos: usize = 0;
             for i in 0..line_num {
                 let mut content_buf = String::new();
-                self.0.read_line(&mut content_buf)?;
+                if self.0.read_line(&mut content_buf)? == 0 {
+                    return Ok(0);
+                }
                 let content_buf = content_buf.trim().strip_prefix("0x").ok_or(into_io_error(
                     std::io::ErrorKind::InvalidData,
                     format!("line {}: {} is not valid hex data!", i, content_buf),
@@ -439,6 +441,15 @@ mod test {
         assert_eq!(rlen, 4);
         println!("result = {:#x}", result);
         assert_eq!(result, data2[0]);
+        let rlen = fs
+            .read(&resolver, fd, &mut result as *mut u32 as *mut u8, 4)
+            .unwrap();
+        println!("rlen = {}", rlen);
+        let rlen = fs
+            .read(&resolver, fd, &mut result as *mut u32 as *mut u8, 4)
+            .unwrap();
+        println!("rlen = {}", rlen);
+        assert_eq!(rlen, 0);
         fs.close(fd).unwrap();
     }
 
