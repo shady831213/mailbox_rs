@@ -417,7 +417,7 @@ impl<'a> MBRpc for MBFSeek<'a> {
     type RESP = MBPtrT;
     fn put_req(&self, req: Self::REQ, entry: &mut MBReqEntry) {
         entry.action = MBAction::FILEACCESS;
-        entry.words = 2;
+        entry.words = 3;
         entry.args[0] = MBFileAction::SEEK as MBPtrT;
         entry.args[1] = req.fd as MBPtrT;
         entry.args[2] = req.pos;
