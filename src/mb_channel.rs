@@ -1,4 +1,4 @@
-use crate::mb_rpcs::{MBAction, MBPtrT};
+use crate::mb_rpcs::*;
 
 #[derive(Debug)]
 #[repr(u32)]
@@ -38,13 +38,6 @@ pub struct MBReqEntry {
 pub struct MBRespEntry {
     pub words: u32,
     pub rets: MBPtrT,
-}
-
-pub trait MBRpc {
-    type REQ;
-    type RESP;
-    fn put_req(&self, req: Self::REQ, entry: &mut MBReqEntry);
-    fn get_resp(&self, entry: &MBRespEntry) -> Self::RESP;
 }
 
 pub trait MBQueueIf<T> {

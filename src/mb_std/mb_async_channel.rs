@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 use crate::mb_channel::*;
+use crate::mb_rpcs::*;
 
 pub struct MBAsyncChannel<CH: MBChannelIf> {
     channel: CH,

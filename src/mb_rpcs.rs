@@ -28,6 +28,13 @@ impl Default for MBAction {
     }
 }
 
+pub trait MBRpc {
+    type REQ;
+    type RESP;
+    fn put_req(&self, req: Self::REQ, entry: &mut MBReqEntry);
+    fn get_resp(&self, entry: &MBRespEntry) -> Self::RESP;
+}
+
 pub struct MBExit;
 
 impl MBRpc for MBExit {
