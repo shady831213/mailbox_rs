@@ -6,9 +6,9 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-pub trait MBFile: Read + Seek + Write {}
+pub trait MBFile: Read + Seek + Write + Send {}
 
-pub trait MBFileOpener {
+pub trait MBFileOpener: Sync + Send {
     fn open(&self, path: &str, flags: u32) -> std::io::Result<MBFileType>;
 }
 

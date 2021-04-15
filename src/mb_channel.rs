@@ -1,29 +1,4 @@
-#[cfg(feature = "ptr32")]
-pub type MBPtrT = u32;
-#[cfg(feature = "ptr64")]
-pub type MBPtrT = u64;
-#[cfg(feature = "ptrhost")]
-pub type MBPtrT = usize;
-
-#[derive(Debug, Copy, Clone)]
-#[repr(u32)]
-pub enum MBAction {
-    IDLE = 0,
-    EXIT = 1,
-    PRINT = 2,
-    CPRINT = 3,
-    MEMMOVE = 4,
-    MEMSET = 5,
-    MEMCMP = 6,
-    SVCALL = 7,
-    OTHER = 0x80000000,
-}
-
-impl Default for MBAction {
-    fn default() -> Self {
-        MBAction::IDLE
-    }
-}
+use crate::mb_rpcs::{MBAction, MBPtrT};
 
 #[derive(Debug)]
 #[repr(u32)]

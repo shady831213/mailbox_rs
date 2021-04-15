@@ -25,6 +25,7 @@ mod tests {
     use super::mb_rpcs::*;
     use super::mb_server::*;
     use crate::mb_channel::*;
+    use crate::mb_rpcs::*;
     use async_std::future::Future;
     use async_std::task::Context;
     use async_std::task::Poll;
@@ -38,7 +39,7 @@ mod tests {
     #[test]
     fn mb_std_basic() {
         let channel = Arc::new(Mutex::new(MBAsyncChannel::new(MBChannel::default())));
-        let server = MBLocalServer::new("server");
+        let server = MBLocalServer::new("server", &Arc::new(None));
         let sender = MBAsyncSender::new(&channel);
         let receiver = MBAsyncReceiver::new(&channel);
         async_std::task::block_on(async {
@@ -105,7 +106,7 @@ mod tests {
         let channel = Arc::new(Mutex::new(MBAsyncChannel::new(MBChannelShareMem::new(
             0, &share_mem,
         ))));
-        let server = MBLocalServer::new("server");
+        let server = MBLocalServer::new("server", &Arc::new(None));
         let sender = MBAsyncSender::new(&channel);
         let receiver = MBAsyncReceiver::new(&channel);
         async_std::task::block_on(async {
@@ -134,7 +135,7 @@ mod tests {
     #[test]
     fn mb_cprint_test() {
         let channel = Arc::new(Mutex::new(MBAsyncChannel::new(MBChannel::default())));
-        let server = MBLocalServer::new("server");
+        let server = MBLocalServer::new("server", &Arc::new(None));
         let sender = MBAsyncSender::new(&channel);
         let receiver = MBAsyncReceiver::new(&channel);
         async_std::task::block_on(async {
@@ -226,7 +227,7 @@ mod tests {
     #[test]
     fn custom_rpc_test() {
         let channel = Arc::new(Mutex::new(MBAsyncChannel::new(MBChannel::default())));
-        let server = MBLocalServer::new("server");
+        let server = MBLocalServer::new("server", &Arc::new(None));
         server.add_cmd(MyCustomRPC);
         let sender = MBAsyncSender::new(&channel);
         let receiver = MBAsyncReceiver::new(&channel);
@@ -255,7 +256,7 @@ mod tests {
         let channel = Arc::new(Mutex::new(MBAsyncChannel::new(MBChannelShareMem::new(
             0, &share_mem,
         ))));
-        let server = MBLocalServer::new("server");
+        let server = MBLocalServer::new("server", &Arc::new(None));
         let sender = MBAsyncSender::new(&channel);
         let receiver = MBAsyncReceiver::new(&channel);
         async_std::task::block_on(async {
@@ -287,7 +288,7 @@ mod tests {
         let channel = Arc::new(Mutex::new(MBAsyncChannel::new(MBChannelShareMem::new(
             0, &share_mem,
         ))));
-        let server = MBLocalServer::new("server");
+        let server = MBLocalServer::new("server", &Arc::new(None));
         let sender = MBAsyncSender::new(&channel);
         let receiver = MBAsyncReceiver::new(&channel);
         async_std::task::block_on(async {
@@ -318,7 +319,7 @@ mod tests {
         let channel = Arc::new(Mutex::new(MBAsyncChannel::new(MBChannelShareMem::new(
             0, &share_mem,
         ))));
-        let server = MBLocalServer::new("server");
+        let server = MBLocalServer::new("server", &Arc::new(None));
         let sender = MBAsyncSender::new(&channel);
         let receiver = MBAsyncReceiver::new(&channel);
         async_std::task::block_on(async {

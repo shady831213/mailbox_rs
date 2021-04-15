@@ -1,4 +1,4 @@
-use crate::mb_channel::*;
+use crate::mb_rpcs::*;
 use std::sync::Arc;
 use std::sync::Mutex;
 

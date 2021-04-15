@@ -36,7 +36,7 @@ macro_rules! export_mb_backdoor_dpi {
                 .lock()
                 .unwrap();
             let m_data = unsafe { std::ffi::CStr::from_ptr(data) }.to_bytes_with_nul();
-            space.write(addr as crate::mailbox_rs::mb_channel::MBPtrT, m_data);
+            space.write(addr as crate::mailbox_rs::mb_rpcs::MBPtrT, m_data);
         }
 
         #[no_mangle]
@@ -69,7 +69,7 @@ macro_rules! export_mb_backdoor_dpi {
                     .expect(format!("space {} does not exist!", space_name).as_str())
                     .lock()
                     .unwrap();
-                space.write_sized(addr as crate::mailbox_rs::mb_channel::MBPtrT, &data);
+                space.write_sized(addr as crate::mailbox_rs::mb_rpcs::MBPtrT, &data);
             }
             #[no_mangle]
             extern "C" fn [<mb_backdoor_read_ $t>](
@@ -84,7 +84,7 @@ macro_rules! export_mb_backdoor_dpi {
                     .lock()
                     .unwrap();
                 let m_data = unsafe { std::slice::from_raw_parts_mut(data as *mut u8, std::mem::size_of::<$t>()) };
-                space.read(addr as crate::mailbox_rs::mb_channel::MBPtrT, m_data);
+                space.read(addr as crate::mailbox_rs::mb_rpcs::MBPtrT, m_data);
             }
         }
 

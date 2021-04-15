@@ -4,6 +4,7 @@ use std::sync::Mutex;
 
 use super::share_mem::*;
 use crate::mb_channel::*;
+use crate::mb_rpcs::*;
 #[derive(Debug)]
 #[repr(C)]
 pub struct MBQueueShareMem<SM: MBShareMem, T: Sized + Default + Debug> {

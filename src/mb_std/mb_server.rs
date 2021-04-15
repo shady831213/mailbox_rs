@@ -1,3 +1,4 @@
+use super::mb_fs::*;
 use super::mb_ptr_resolver::*;
 use super::mb_rpcs::*;
 use super::mb_share_mem::*;
@@ -17,12 +18,13 @@ struct MBServerInner<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER =
     memset: MBMemSet<'static>,
     memcmp: MBMemCmp<'static>,
     svcall: MBSvCall<'static>,
+    fs: Arc<Option<MBFs>>,
     other_cmds: Mutex<Vec<Box<dyn CustomAsycRPC<RA, WA, R>>>>,
 }
 impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>>
     MBServerInner<RA, WA, R>
 {
-    fn new() -> MBServerInner<RA, WA, R> {
+    fn new(fs: &Arc<Option<MBFs>>) -> MBServerInner<RA, WA, R> {
         MBServerInner {
             exit: MBExit,
             print: MBPrint::new(),
@@ -31,6 +33,7 @@ impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA
             memset: MBMemSet::new(),
             memcmp: MBMemCmp::new(),
             svcall: MBSvCall::new(),
+            fs: fs.clone(),
             other_cmds: Mutex::new(vec![]),
         }
     }
@@ -57,6 +60,13 @@ impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA
             MBAction::MEMSET => self.memset.poll_cmd(server_name, r, &req, cx),
             MBAction::MEMCMP => self.memcmp.poll_cmd(server_name, r, &req, cx),
             MBAction::SVCALL => self.svcall.poll_cmd(server_name, r, &req, cx),
+            MBAction::FILEACCESS => {
+                if let Some(fs) = &*self.fs {
+                    fs.poll_cmd(server_name, r, &req, cx)
+                } else {
+                    panic!("No mb_fs in {}!", server_name)
+                }
+            }
             MBAction::OTHER => {
                 let other_cmds = self.other_cmds.lock().unwrap();
                 for cmd in other_cmds.iter() {
@@ -78,11 +88,11 @@ pub struct MBLocalServer {
 }
 
 impl MBLocalServer {
-    pub fn new(name: &str) -> MBLocalServer {
+    pub fn new(name: &str, fs: &Arc<Option<MBFs>>) -> MBLocalServer {
         MBLocalServer {
             name: name.to_string(),
             resolver: MBLocalPtrResolver::default(),
-            inner: MBServerInner::new(),
+            inner: MBServerInner::new(fs),
         }
     }
     pub fn do_cmd<'a>(
@@ -108,11 +118,11 @@ pub struct MBSMServer<SM: MBShareMem> {
 }
 
 impl<SM: MBShareMem> MBSMServer<SM> {
-    pub fn new(name: &str, sm: &Arc<Mutex<SM>>) -> MBSMServer<SM> {
+    pub fn new(name: &str, fs: &Arc<Option<MBFs>>, sm: &Arc<Mutex<SM>>) -> MBSMServer<SM> {
         MBSMServer {
             name: name.to_string(),
             resolver: MBSMPtrResolver::new(sm),
-            inner: MBServerInner::new(),
+            inner: MBServerInner::new(fs),
         }
     }
     pub fn do_cmd<'a>(

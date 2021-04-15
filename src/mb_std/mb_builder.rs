@@ -1,5 +1,6 @@
 extern crate yaml_rust;
-use crate::mb_channel::*;
+use super::mb_fs::*;
+use crate::mb_rpcs::*;
 use crate::mb_std::*;
 use async_std::future::Future;
 use futures::future::join_all;
@@ -97,6 +98,7 @@ pub struct MBChannelShareMemSys<SM: MBShareMem> {
     chs: HashMap<String, Arc<Mutex<MBAsyncChannel<MBChannelShareMem<SM>>>>>,
     space_map: HashMap<String, Arc<Mutex<SM>>>,
     ch_space_map: HashMap<String, String>,
+    fs: Arc<Option<MBFs>>,
 }
 impl<SM: MBShareMem> MBChannelShareMemSys<SM> {
     fn new(space_map: HashMap<String, Arc<Mutex<SM>>>) -> MBChannelShareMemSys<SM> {
@@ -104,6 +106,7 @@ impl<SM: MBShareMem> MBChannelShareMemSys<SM> {
             chs: HashMap::new(),
             space_map,
             ch_space_map: HashMap::new(),
+            fs: Arc::new(None),
         }
     }
     pub fn get_space(&self, name: &str) -> Option<&Arc<Mutex<SM>>> {
@@ -138,7 +141,7 @@ impl<SM: MBShareMem> MBChannelShareMemSys<SM> {
             .chs
             .iter()
             .map(|ch| {
-                let server = MBSMServer::new(ch.0, self.space_map.get(ch.0).unwrap());
+                let server = MBSMServer::new(ch.0, &self.fs, self.space_map.get(ch.0).unwrap());
                 server_callback(&server);
                 let receiver = MBAsyncReceiver::new(ch.1);
                 async move {
@@ -181,7 +184,7 @@ impl<SM: MBShareMem> MBChannelShareMemBuilder<SM> {
         })
     }
 
-    pub fn build(mut self) -> Result<MBChannelShareMemSys<SM>, String> {
+    pub fn cfg_channels(mut self) -> Result<MBChannelShareMemBuilder<SM>, String> {
         if let Yaml::Hash(ref chs) = self.docs[0] {
             for (key, ch) in chs.iter() {
                 let k = key.as_str().unwrap();
@@ -213,10 +216,59 @@ impl<SM: MBShareMem> MBChannelShareMemBuilder<SM> {
                     .ch_space_map
                     .insert(k.to_string(), space_k.to_string());
             }
-            Ok(self.sys)
+            Ok(self)
         } else {
             Err("No channels found in mailbox cfg file!".to_string())
         }
+    }
+    pub fn fs(mut self, root: &str) -> Result<MBChannelShareMemBuilder<SM>, String> {
+        self.sys.fs = Arc::new(Some(MBFs::new(root).map_err(|e| e.to_string())?));
+        Ok(self)
+    }
+
+    pub fn fs_with_special_and_virtual<
+        F1: FnMut(&mut HashMap<String, Box<dyn MBFileOpener>>) -> Result<(), String>,
+        F2: FnMut(&mut HashMap<String, Box<dyn MBFileOpener>>) -> Result<(), String>,
+    >(
+        mut self,
+        root: &str,
+        special_f: F1,
+        virtual_f: F2,
+    ) -> Result<MBChannelShareMemBuilder<SM>, String> {
+        self.sys.fs = Arc::new(Some(
+            MBFs::with_special_and_virtual(root, special_f, virtual_f)
+                .map_err(|e| e.to_string())?,
+        ));
+        Ok(self)
+    }
+
+    pub fn fs_with_special<
+        F: FnMut(&mut HashMap<String, Box<dyn MBFileOpener>>) -> Result<(), String>,
+    >(
+        mut self,
+        root: &str,
+        f: F,
+    ) -> Result<MBChannelShareMemBuilder<SM>, String> {
+        self.sys.fs = Arc::new(Some(
+            MBFs::with_special(root, f).map_err(|e| e.to_string())?,
+        ));
+        Ok(self)
+    }
+    pub fn fs_with_virtual<
+        F: FnMut(&mut HashMap<String, Box<dyn MBFileOpener>>) -> Result<(), String>,
+    >(
+        mut self,
+        root: &str,
+        f: F,
+    ) -> Result<MBChannelShareMemBuilder<SM>, String> {
+        self.sys.fs = Arc::new(Some(
+            MBFs::with_virtual(root, f).map_err(|e| e.to_string())?,
+        ));
+        Ok(self)
+    }
+
+    pub fn build(self) -> MBChannelShareMemSys<SM> {
+        self.sys
     }
 }
 
@@ -323,7 +375,8 @@ mod test {
             .unwrap();
         MBChannelShareMemBuilder::<MBShareMemSpace<MyShareMem>>::from_str(s, spaces)
             .unwrap()
-            .build()
-            .unwrap();
+            .cfg_channels()
+            .unwrap()
+            .build();
     }
 }

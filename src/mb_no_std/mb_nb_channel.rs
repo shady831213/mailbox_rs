@@ -1,4 +1,5 @@
 use crate::mb_channel::*;
+use crate::mb_rpcs::*;
 extern crate alloc;
 extern crate nb;
 extern crate spin;

@@ -1,6 +1,35 @@
 use crate::mb_channel::*;
 use core::marker::PhantomData;
+#[cfg(feature = "ptr32")]
+pub type MBPtrT = u32;
+#[cfg(feature = "ptr64")]
+pub type MBPtrT = u64;
+#[cfg(feature = "ptrhost")]
+pub type MBPtrT = usize;
+
+#[derive(Debug, Copy, Clone)]
+#[repr(u32)]
+pub enum MBAction {
+    IDLE = 0,
+    EXIT = 1,
+    PRINT = 2,
+    CPRINT = 3,
+    MEMMOVE = 4,
+    MEMSET = 5,
+    MEMCMP = 6,
+    SVCALL = 7,
+    FILEACCESS = 8,
+    OTHER = 0x80000000,
+}
+
+impl Default for MBAction {
+    fn default() -> Self {
+        MBAction::IDLE
+    }
+}
+
 pub struct MBExit;
+
 impl MBRpc for MBExit {
     type REQ = u32;
     type RESP = ();
@@ -238,3 +267,162 @@ pub const MB_FILE_READ: u32 = 0x1;
 pub const MB_FILE_WRITE: u32 = 0x2;
 pub const MB_FILE_APPEND: u32 = 0x4;
 pub const MB_FILE_TRUNC: u32 = 0x8;
+
+#[repr(u32)]
+pub enum MBFileAction {
+    OPEN = 0,
+    CLOSE = 1,
+    READ = 2,
+    WRITE = 3,
+    SEEK = 4,
+}
+
+#[derive(Default, Debug)]
+#[repr(C)]
+pub struct MBFOpenArgs {
+    pub path: MBPtrT, // -> MBReq.args[1]
+    pub flags: u32,   // -> MBReq.args[2]
+}
+
+pub struct MBFOpen<'a> {
+    _marker: PhantomData<&'a u8>,
+}
+impl<'a> MBFOpen<'a> {
+    pub fn new() -> MBFOpen<'a> {
+        MBFOpen {
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<'a> MBRpc for MBFOpen<'a> {
+    type REQ = &'a MBFOpenArgs;
+    type RESP = u32;
+    fn put_req(&self, req: Self::REQ, entry: &mut MBReqEntry) {
+        entry.action = MBAction::FILEACCESS;
+        entry.words = 3;
+        entry.args[0] = MBFileAction::OPEN as MBPtrT;
+        entry.args[1] = req.path;
+        entry.args[2] = req.flags as MBPtrT;
+    }
+    fn get_resp(&self, resp: &MBRespEntry) -> Self::RESP {
+        resp.rets as u32
+    }
+}
+
+pub struct MBFClose;
+
+impl MBRpc for MBFClose {
+    type REQ = u32;
+    type RESP = ();
+    fn put_req(&self, req: Self::REQ, entry: &mut MBReqEntry) {
+        entry.action = MBAction::FILEACCESS;
+        entry.words = 2;
+        entry.args[0] = MBFileAction::CLOSE as MBPtrT;
+        entry.args[1] = req as MBPtrT;
+    }
+    fn get_resp(&self, _resp: &MBRespEntry) -> Self::RESP {}
+}
+
+#[derive(Default, Debug)]
+#[repr(C)]
+pub struct MBFReadArgs {
+    pub fd: u32,     // -> MBReq.args[1]
+    pub ptr: MBPtrT, // -> MBReq.args[2]
+    pub len: u32,    // -> MBReq.args[3]
+}
+
+pub struct MBFRead<'a> {
+    _marker: PhantomData<&'a u8>,
+}
+impl<'a> MBFRead<'a> {
+    pub fn new() -> MBFRead<'a> {
+        MBFRead {
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<'a> MBRpc for MBFRead<'a> {
+    type REQ = &'a MBFReadArgs;
+    type RESP = usize;
+    fn put_req(&self, req: Self::REQ, entry: &mut MBReqEntry) {
+        entry.action = MBAction::FILEACCESS;
+        entry.words = 4;
+        entry.args[0] = MBFileAction::READ as MBPtrT;
+        entry.args[1] = req.fd as MBPtrT;
+        entry.args[2] = req.ptr;
+        entry.args[3] = req.len as MBPtrT;
+    }
+    fn get_resp(&self, resp: &MBRespEntry) -> Self::RESP {
+        resp.rets as usize
+    }
+}
+
+#[derive(Default, Debug)]
+#[repr(C)]
+pub struct MBFWriteArgs {
+    pub fd: u32,     // -> MBReq.args[1]
+    pub ptr: MBPtrT, // -> MBReq.args[2]
+    pub len: u32,    // -> MBReq.args[3]
+}
+
+pub struct MBFWrite<'a> {
+    _marker: PhantomData<&'a u8>,
+}
+impl<'a> MBFWrite<'a> {
+    pub fn new() -> MBFWrite<'a> {
+        MBFWrite {
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<'a> MBRpc for MBFWrite<'a> {
+    type REQ = &'a MBFWriteArgs;
+    type RESP = usize;
+    fn put_req(&self, req: Self::REQ, entry: &mut MBReqEntry) {
+        entry.action = MBAction::FILEACCESS;
+        entry.words = 4;
+        entry.args[0] = MBFileAction::WRITE as MBPtrT;
+        entry.args[1] = req.fd as MBPtrT;
+        entry.args[2] = req.ptr;
+        entry.args[3] = req.len as MBPtrT;
+    }
+    fn get_resp(&self, resp: &MBRespEntry) -> Self::RESP {
+        resp.rets as usize
+    }
+}
+
+#[derive(Default, Debug)]
+#[repr(C)]
+pub struct MBFSeekArgs {
+    pub fd: u32,     // -> MBReq.args[1]
+    pub pos: MBPtrT, // -> MBReq.args[2]
+}
+
+pub struct MBFSeek<'a> {
+    _marker: PhantomData<&'a u8>,
+}
+impl<'a> MBFSeek<'a> {
+    pub fn new() -> MBFSeek<'a> {
+        MBFSeek {
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<'a> MBRpc for MBFSeek<'a> {
+    type REQ = &'a MBFSeekArgs;
+    type RESP = MBPtrT;
+    fn put_req(&self, req: Self::REQ, entry: &mut MBReqEntry) {
+        entry.action = MBAction::FILEACCESS;
+        entry.words = 2;
+        entry.args[0] = MBFileAction::SEEK as MBPtrT;
+        entry.args[1] = req.fd as MBPtrT;
+        entry.args[2] = req.pos;
+    }
+    fn get_resp(&self, resp: &MBRespEntry) -> Self::RESP {
+        resp.rets
+    }
+}
