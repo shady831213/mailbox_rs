@@ -83,12 +83,12 @@ struct MBFsInner {
     opened_files: BTreeMap<u32, MBFileType>,
 }
 impl MBFsInner {
-    fn insert(&mut self, file_path: &str, file: MBFileType) -> std::io::Result<u32> {
+    fn insert(&mut self, file: MBFileType) -> std::io::Result<u32> {
         let fd = self.file_fd_cnt;
         self.opened_files.insert(fd, file).map_or(Ok(()), |_| {
             Err(into_io_error(
                 std::io::ErrorKind::AlreadyExists,
-                format!("file {} has been opened!", file_path),
+                "file has been opened!",
             ))
         })?;
         self.file_fd_cnt = self.file_fd_cnt.wrapping_add(1);
@@ -233,12 +233,22 @@ impl MBFs {
         self.normal_opener.open(file_path.to_str().unwrap(), flags)
     }
 
-    pub fn open<P: AsRef<Path>>(&self, path: P, flags: u32) -> std::io::Result<u32> {
-        let file = self.open_file(path.as_ref(), flags)?;
+    pub fn open<P: AsRef<Path>>(&self, path: P, flags: u32) -> Result<u32, String> {
+        let err_handler = |e: String| {
+            format!(
+                "file:{}, {}",
+                self.root.join(path.as_ref()).to_str().unwrap(),
+                e
+            )
+        };
+        let file = self
+            .open_file(path.as_ref(), flags)
+            .map_err(|e| err_handler(e.to_string()))?;
         self.inner
             .lock()
             .unwrap()
-            .insert(self.root.join(path).to_str().unwrap(), file)
+            .insert(file)
+            .map_err(|e| err_handler(e.to_string()))
     }
 
     pub fn close(&self, fd: u32) -> std::io::Result<()> {
