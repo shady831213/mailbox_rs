@@ -89,7 +89,7 @@ impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA
                 let args = MBFReadArgs {
                     fd: req.args[1] as u32,
                     ptr: req.args[2],
-                    len: req.args[3] as u32,
+                    len: req.args[3],
                 };
                 self.poll_read(r, &args)
             }
@@ -97,7 +97,7 @@ impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA
                 let args = MBFWriteArgs {
                     fd: req.args[1] as u32,
                     ptr: req.args[2],
-                    len: req.args[3] as u32,
+                    len: req.args[3],
                 };
                 self.poll_write(r, &args)
             }
@@ -143,7 +143,7 @@ pub fn mb_fread<'a, CH: MBChannelIf>(
     sender: &'a MBAsyncSender<CH>,
     fd: u32,
     ptr: MBPtrT,
-    len: u32,
+    len: MBPtrT,
 ) -> impl Future<Output = usize> + 'a {
     let fread_rpc = MBFRead::new();
     async move {
@@ -157,7 +157,7 @@ pub fn mb_fwrite<'a, CH: MBChannelIf>(
     sender: &'a MBAsyncSender<CH>,
     fd: u32,
     ptr: MBPtrT,
-    len: u32,
+    len: MBPtrT,
 ) -> impl Future<Output = usize> + 'a {
     let fwrite_rpc = MBFWrite::new();
     async move {

@@ -336,7 +336,7 @@ impl MBRpc for MBFClose {
 pub struct MBFReadArgs {
     pub fd: u32,     // -> MBReq.args[1]
     pub ptr: MBPtrT, // -> MBReq.args[2]
-    pub len: u32,    // -> MBReq.args[3]
+    pub len: MBPtrT, // -> MBReq.args[3]
 }
 
 pub struct MBFRead<'a> {
@@ -359,7 +359,7 @@ impl<'a> MBRpc for MBFRead<'a> {
         entry.args[0] = MBFileAction::READ as MBPtrT;
         entry.args[1] = req.fd as MBPtrT;
         entry.args[2] = req.ptr;
-        entry.args[3] = req.len as MBPtrT;
+        entry.args[3] = req.len;
     }
     fn get_resp(&self, resp: &MBRespEntry) -> Self::RESP {
         resp.rets as usize
@@ -371,7 +371,7 @@ impl<'a> MBRpc for MBFRead<'a> {
 pub struct MBFWriteArgs {
     pub fd: u32,     // -> MBReq.args[1]
     pub ptr: MBPtrT, // -> MBReq.args[2]
-    pub len: u32,    // -> MBReq.args[3]
+    pub len: MBPtrT, // -> MBReq.args[3]
 }
 
 pub struct MBFWrite<'a> {
@@ -394,7 +394,7 @@ impl<'a> MBRpc for MBFWrite<'a> {
         entry.args[0] = MBFileAction::WRITE as MBPtrT;
         entry.args[1] = req.fd as MBPtrT;
         entry.args[2] = req.ptr;
-        entry.args[3] = req.len as MBPtrT;
+        entry.args[3] = req.len;
     }
     fn get_resp(&self, resp: &MBRespEntry) -> Self::RESP {
         resp.rets as usize

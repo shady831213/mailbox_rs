@@ -1,5 +1,6 @@
 mod c_print;
 mod exit;
+mod file_access;
 mod memcmp;
 mod memmove;
 mod memset;
@@ -7,6 +8,7 @@ mod print;
 mod svcall;
 pub use c_print::*;
 pub use exit::*;
+pub use file_access::*;
 pub use memcmp::*;
 pub use memmove::*;
 pub use memset::*;
