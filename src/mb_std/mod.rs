@@ -14,6 +14,7 @@ mod utils;
 pub use macros::*;
 pub use mb_async_channel::*;
 pub use mb_builder::*;
+pub use mb_fs::*;
 pub use mb_ptr_resolver::*;
 pub use mb_rpcs::*;
 pub use mb_server::*;
