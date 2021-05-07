@@ -90,3 +90,92 @@ macro_rules! export_mb_backdoor_dpi {
 
     };
 }
+
+#[macro_export]
+macro_rules! export_mb_backdoor_py {
+    ($mailbox:ident, $package:ident) => {
+        use crate::pyo3::prelude::*;
+        export_mb_backdoor_py!(@ u8, $mailbox);
+        export_mb_backdoor_py!(@ u16, $mailbox);
+        export_mb_backdoor_py!(@ u32, $mailbox);
+        export_mb_backdoor_py!(@ u64, $mailbox);
+        #[pyfunction]
+        fn py_mb_get_space(
+            ch_name: &str,
+        ) -> String{
+            let space_name_str = $mailbox
+            .get_ch_space_name(ch_name)
+            .expect(format!("can't find space of ch {}!", ch_name).as_str());
+            space_name_str.to_string()
+        }
+
+        #[pyfunction]
+        fn py_mb_backdoor_read_string(
+            space_name: &str,
+            addr: u64,
+        ) -> String{
+            let space = $mailbox
+                .get_space(space_name)
+                .expect(format!("space {} does not exist!", space_name).as_str());
+            let resolver = crate::mailbox_rs::mb_std::MBSMPtrResolver::new(space);
+            let s = resolver.read_c_str(addr as *const u8).unwrap();
+            s.to_string()
+        }
+        #[pyfunction]
+        fn py_mb_backdoor_write_string(
+            space_name: &str,
+            addr: u64,
+            data: &str,
+        ) {
+            let mut space = $mailbox
+                .get_space(space_name)
+                .expect(format!("space {} does not exist!", space_name).as_str())
+                .lock()
+                .unwrap();
+            let m_data = std::ffi::CString::new(data).unwrap();
+            space.write(addr as crate::mailbox_rs::mb_rpcs::MBPtrT, m_data.to_bytes_with_nul());
+        }
+        #[pymodule]
+        fn $package(_py: Python, m: &PyModule) -> PyResult<()> {
+            m.add_function(crate::pyo3::wrap_pyfunction!(py_mb_get_space, m)?)?;
+            m.add_function(crate::pyo3::wrap_pyfunction!(py_mb_backdoor_read_string, m)?)?;
+            m.add_function(crate::pyo3::wrap_pyfunction!(py_mb_backdoor_write_string, m)?)?;
+            m.add_function(crate::pyo3::wrap_pyfunction!(py_mb_backdoor_read_u8, m)?)?;
+            m.add_function(crate::pyo3::wrap_pyfunction!(py_mb_backdoor_write_u8, m)?)?;
+            m.add_function(crate::pyo3::wrap_pyfunction!(py_mb_backdoor_read_u16, m)?)?;
+            m.add_function(crate::pyo3::wrap_pyfunction!(py_mb_backdoor_write_u16, m)?)?;
+            m.add_function(crate::pyo3::wrap_pyfunction!(py_mb_backdoor_read_u32, m)?)?;
+            m.add_function(crate::pyo3::wrap_pyfunction!(py_mb_backdoor_write_u32, m)?)?;
+            m.add_function(crate::pyo3::wrap_pyfunction!(py_mb_backdoor_read_u64, m)?)?;
+            m.add_function(crate::pyo3::wrap_pyfunction!(py_mb_backdoor_write_u64, m)?)?;
+            Ok(())
+        }
+    };
+    (@ $t:ty, $mailbox:ident) => {
+        crate::mailbox_rs::mb_std::paste::paste!{
+            #[pyfunction]
+            fn [<py_mb_backdoor_write_ $t>](space_name: &str, addr: u64, data: $t) {
+                let mut space = $mailbox
+                .get_space(space_name)
+                .expect(format!("space {} does not exist!", space_name).as_str())
+                .lock()
+                .unwrap();
+                space.write_sized(addr as crate::mailbox_rs::mb_rpcs::MBPtrT, &data);
+            }
+            #[pyfunction]
+            fn [<py_mb_backdoor_read_ $t>](
+                space_name: &str,
+                addr: u64,
+            ) -> $t {
+                let space = $mailbox
+                .get_space(space_name)
+                .expect(format!("space {} does not exist!", space_name).as_str())
+                .lock()
+                .unwrap();
+                let mut data:$t = 0;
+                space.read_sized(addr as crate::mailbox_rs::mb_rpcs::MBPtrT, &mut data);
+                data
+            }
+        }
+    };
+}
