@@ -96,7 +96,7 @@ mod tests {
             } else {
                 data.len()
             };
-            &mut data[..len].copy_from_slice(&self.mem[offset..offset + len]);
+            let _ = &mut data[..len].copy_from_slice(&self.mem[offset..offset + len]);
             len
         }
     }
