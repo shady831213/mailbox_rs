@@ -1,4 +1,4 @@
-use super::MBAsyncRPC;
+use super::{MBAsyncRPC, MBAsyncRPCResult};
 use crate::mb_channel::*;
 use crate::mb_rpcs::*;
 use crate::mb_std::mb_async_channel::*;
@@ -16,13 +16,13 @@ impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER 
         r: &R,
         req: &MBReqEntry,
         _cx: &mut Context,
-    ) -> Poll<Option<MBRespEntry>> {
+    ) -> Poll<MBAsyncRPCResult> {
         let str_args = MBStringArgs {
             len: req.args[0] as u32,
             ptr: req.args[1],
         };
         print!("[{}] {}", server_name, r.read_str(&str_args).unwrap());
-        Poll::Ready(Some(MBRespEntry::default()))
+        Poll::Ready(Ok(MBRespEntry::default()))
     }
 }
 

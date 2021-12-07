@@ -1,4 +1,4 @@
-use super::MBAsyncRPC;
+use super::{MBAsyncRPC, MBAsyncRPCResult};
 use crate::mb_channel::*;
 use crate::mb_rpcs::*;
 use crate::mb_std::mb_async_channel::*;
@@ -16,7 +16,7 @@ impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER 
         r: &R,
         req: &MBReqEntry,
         _cx: &mut Context,
-    ) -> Poll<Option<MBRespEntry>> {
+    ) -> Poll<MBAsyncRPCResult> {
         let args = MBMemCmpArgs {
             s1: req.args[0],
             s2: req.args[1],
@@ -31,10 +31,10 @@ impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER 
             r.read_sized((args.s2 + i) as *const u8, &mut s2);
             if s1 != s2 {
                 resp.rets = (s1 as i32 - s2 as i32) as MBPtrT;
-                return Poll::Ready(Some(resp));
+                return Poll::Ready(Ok(resp));
             }
         }
-        Poll::Ready(Some(resp))
+        Poll::Ready(Ok(resp))
     }
 }
 

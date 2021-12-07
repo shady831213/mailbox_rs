@@ -1,4 +1,4 @@
-use super::MBAsyncRPC;
+use super::{MBAsyncRPC, MBAsyncRPCError, MBAsyncRPCResult};
 use crate::mb_channel::*;
 use crate::mb_rpcs::*;
 use crate::mb_std::mb_async_channel::*;
@@ -12,28 +12,28 @@ impl MBFs {
         &self,
         r: &R,
         args: &MBFOpenArgs,
-    ) -> Poll<Option<MBRespEntry>> {
+    ) -> Poll<MBAsyncRPCResult> {
         let mut resp = MBRespEntry::default();
         resp.words = 1;
         let path = r.read_c_str(args.path as *const u8).unwrap();
         resp.rets = self.open(path.as_str(), args.flags).unwrap() as MBPtrT;
-        Poll::Ready(Some(resp))
+        Poll::Ready(Ok(resp))
     }
-    fn poll_close(&self, fd: u32) -> Poll<Option<MBRespEntry>> {
+    fn poll_close(&self, fd: u32) -> Poll<MBAsyncRPCResult> {
         self.close(fd).unwrap();
-        Poll::Ready(None)
+        Poll::Ready(Err(MBAsyncRPCError::NoResp))
     }
     fn poll_read<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>>(
         &self,
         r: &R,
         args: &MBFReadArgs,
-    ) -> Poll<Option<MBRespEntry>> {
+    ) -> Poll<MBAsyncRPCResult> {
         match self.read(r, args.fd, args.ptr as *mut u8, args.len as usize) {
             Ok(len) => {
                 let mut resp = MBRespEntry::default();
                 resp.words = 1;
                 resp.rets = len as MBPtrT;
-                Poll::Ready(Some(resp))
+                Poll::Ready(Ok(resp))
             }
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => Poll::Pending,
             Err(e) => panic!("{:?}", e),
@@ -43,23 +43,23 @@ impl MBFs {
         &self,
         r: &R,
         args: &MBFWriteArgs,
-    ) -> Poll<Option<MBRespEntry>> {
+    ) -> Poll<MBAsyncRPCResult> {
         match self.write(r, args.fd, args.ptr as *const u8, args.len as usize) {
             Ok(len) => {
                 let mut resp = MBRespEntry::default();
                 resp.words = 1;
                 resp.rets = len as MBPtrT;
-                Poll::Ready(Some(resp))
+                Poll::Ready(Ok(resp))
             }
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => Poll::Pending,
             Err(e) => panic!("{:?}", e),
         }
     }
-    fn poll_seek(&self, args: &MBFSeekArgs) -> Poll<Option<MBRespEntry>> {
+    fn poll_seek(&self, args: &MBFSeekArgs) -> Poll<MBAsyncRPCResult> {
         let mut resp = MBRespEntry::default();
         resp.words = 1;
         resp.rets = self.seek(args.fd, args.pos as u64).unwrap() as MBPtrT;
-        Poll::Ready(Some(resp))
+        Poll::Ready(Ok(resp))
     }
 }
 
@@ -72,7 +72,7 @@ impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA
         r: &R,
         req: &MBReqEntry,
         _cx: &mut Context,
-    ) -> Poll<Option<MBRespEntry>> {
+    ) -> Poll<MBAsyncRPCResult> {
         let file_action = req.args[0] as u32;
         let mut resp = MBRespEntry::default();
         resp.words = 1;

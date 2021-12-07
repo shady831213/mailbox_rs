@@ -1,4 +1,4 @@
-use super::MBAsyncRPC;
+use super::{MBAsyncRPC, MBAsyncRPCResult};
 use crate::mb_channel::*;
 use crate::mb_rpcs::*;
 use crate::mb_std::mb_async_channel::*;
@@ -28,7 +28,7 @@ impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER 
         r: &R,
         req: &MBReqEntry,
         _cx: &mut Context,
-    ) -> Poll<Option<MBRespEntry>> {
+    ) -> Poll<MBAsyncRPCResult> {
         let mut args = MBSvCallArgs {
             len: req.words - 1,
             method: req.args[0],
@@ -53,7 +53,7 @@ impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER 
                 x if x == MBSvCallStatus::Pending as u32 => Poll::Pending,
                 x if x == MBSvCallStatus::Ready as u32 => {
                     resp.rets = ret;
-                    Poll::Ready(Some(resp))
+                    Poll::Ready(Ok(resp))
                 }
                 _ => panic!("Unkown status {} for SVCALL!", status),
             }

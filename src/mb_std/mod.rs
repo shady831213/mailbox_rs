@@ -55,9 +55,11 @@ mod tests {
             async_std::task::spawn(async move {
                 loop {
                     let req = receiver.recv_req().await;
-                    let mut resp = server.do_cmd(&req).await;
-                    if let Some(r) = resp.take() {
-                        receiver.send_resp(r).await;
+                    match server.do_cmd(&req).await {
+                        Ok(r) => receiver.send_resp(r).await,
+                        Err(MBAsyncRPCError::Stop) => break,
+                        Err(MBAsyncRPCError::Illegal(action)) => panic!("Illegal cmd {:?}", action),
+                        _ => {} 
                     }
                 }
             });
@@ -123,9 +125,11 @@ mod tests {
             async_std::task::spawn(async move {
                 loop {
                     let req = receiver.recv_req().await;
-                    let mut resp = server.do_cmd(&req).await;
-                    if let Some(r) = resp.take() {
-                        receiver.send_resp(r).await;
+                    match server.do_cmd(&req).await {
+                        Ok(r) => receiver.send_resp(r).await,
+                        Err(MBAsyncRPCError::Stop) => break,
+                        Err(MBAsyncRPCError::Illegal(action)) => panic!("Illegal cmd {:?}", action),
+                        _ => {} 
                     }
                 }
             });
@@ -168,9 +172,11 @@ mod tests {
             async_std::task::spawn(async move {
                 loop {
                     let req = receiver.recv_req().await;
-                    let mut resp = server.do_cmd(&req).await;
-                    if let Some(r) = resp.take() {
-                        receiver.send_resp(r).await;
+                    match server.do_cmd(&req).await {
+                        Ok(r) => receiver.send_resp(r).await,
+                        Err(MBAsyncRPCError::Stop) => break,
+                        Err(MBAsyncRPCError::Illegal(action)) => panic!("Illegal cmd {:?}", action),
+                        _ => {} 
                     }
                 }
             });
@@ -188,12 +194,12 @@ mod tests {
             _r: &R,
             req: &MBReqEntry,
             _cx: &mut Context,
-        ) -> Poll<Option<MBRespEntry>> {
+        ) -> Poll<MBAsyncRPCResult> {
             println!("{} this is MyCustomRPC code:{}!", server_name, req.args[1]);
             let mut resp = MBRespEntry::default();
             resp.words = 1;
             resp.rets = req.args[1];
-            Poll::Ready(Some(resp))
+            Poll::Ready(Ok(resp))
         }
     }
     impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>>
@@ -241,9 +247,11 @@ mod tests {
             async_std::task::spawn(async move {
                 loop {
                     let req = receiver.recv_req().await;
-                    let mut resp = server.do_cmd(&req).await;
-                    if let Some(r) = resp.take() {
-                        receiver.send_resp(r).await;
+                    match server.do_cmd(&req).await {
+                        Ok(r) => receiver.send_resp(r).await,
+                        Err(MBAsyncRPCError::Stop) => break,
+                        Err(MBAsyncRPCError::Illegal(action)) => panic!("Illegal cmd {:?}", action),
+                        _ => {} 
                     }
                 }
             });
@@ -273,9 +281,11 @@ mod tests {
             async_std::task::spawn(async move {
                 loop {
                     let req = receiver.recv_req().await;
-                    let mut resp = server.do_cmd(&req).await;
-                    if let Some(r) = resp.take() {
-                        receiver.send_resp(r).await;
+                    match server.do_cmd(&req).await {
+                        Ok(r) => receiver.send_resp(r).await,
+                        Err(MBAsyncRPCError::Stop) => break,
+                        Err(MBAsyncRPCError::Illegal(action)) => panic!("Illegal cmd {:?}", action),
+                        _ => {} 
                     }
                 }
             });
@@ -304,9 +314,11 @@ mod tests {
             async_std::task::spawn(async move {
                 loop {
                     let req = receiver.recv_req().await;
-                    let mut resp = server.do_cmd(&req).await;
-                    if let Some(r) = resp.take() {
-                        receiver.send_resp(r).await;
+                    match server.do_cmd(&req).await {
+                        Ok(r) => receiver.send_resp(r).await,
+                        Err(MBAsyncRPCError::Stop) => break,
+                        Err(MBAsyncRPCError::Illegal(action)) => panic!("Illegal cmd {:?}", action),
+                        _ => {} 
                     }
                 }
             });
@@ -336,9 +348,11 @@ mod tests {
             async_std::task::spawn(async move {
                 loop {
                     let req = receiver.recv_req().await;
-                    let mut resp = server.do_cmd(&req).await;
-                    if let Some(r) = resp.take() {
-                        receiver.send_resp(r).await;
+                    match server.do_cmd(&req).await {
+                        Ok(r) => receiver.send_resp(r).await,
+                        Err(MBAsyncRPCError::Stop) => break,
+                        Err(MBAsyncRPCError::Illegal(action)) => panic!("Illegal cmd {:?}", action),
+                        _ => {} 
                     }
                 }
             });

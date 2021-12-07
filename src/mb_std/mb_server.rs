@@ -12,6 +12,7 @@ use std::sync::Mutex;
 
 struct MBServerInner<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>> {
     exit: MBExit,
+    stop: MBStopServer,
     print: MBPrint<'static>,
     cprint: MBCPrint<'static>,
     memmove: MBMemMove<'static>,
@@ -27,6 +28,7 @@ impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA
     fn new(fs: &Arc<Option<MBFs>>) -> MBServerInner<RA, WA, R> {
         MBServerInner {
             exit: MBExit,
+            stop: MBStopServer,
             print: MBPrint::new(),
             cprint: MBCPrint::new(),
             memmove: MBMemMove::new(),
@@ -51,9 +53,10 @@ impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA
         r: &R,
         req: &MBReqEntry,
         cx: &mut Context,
-    ) -> Poll<Option<MBRespEntry>> {
+    ) -> Poll<MBAsyncRPCResult> {
         match req.action {
             MBAction::EXIT => self.exit.poll_cmd(server_name, r, &req, cx),
+            MBAction::STOPSERVER => self.stop.poll_cmd(server_name, r, &req, cx),
             MBAction::PRINT => self.print.poll_cmd(server_name, r, &req, cx),
             MBAction::CPRINT => self.cprint.poll_cmd(server_name, r, &req, cx),
             MBAction::MEMMOVE => self.memmove.poll_cmd(server_name, r, &req, cx),
@@ -76,7 +79,7 @@ impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA
                 }
                 panic!("OTHER action {:#x} is not support!", req.args[0])
             }
-            _ => Poll::Ready(None),
+            _ => Poll::Ready(Err(MBAsyncRPCError::Illegal(req.action))),
         }
     }
 }
@@ -98,7 +101,7 @@ impl MBLocalServer {
     pub fn do_cmd<'a>(
         &'a self,
         req: &'a MBReqEntry,
-    ) -> impl Future<Output = Option<MBRespEntry>> + 'a {
+    ) -> impl Future<Output = MBAsyncRPCResult> + 'a {
         self.inner.do_cmd(self.name.as_str(), &self.resolver, req)
     }
     pub fn add_cmd<
@@ -128,7 +131,7 @@ impl<SM: MBShareMem> MBSMServer<SM> {
     pub fn do_cmd<'a>(
         &'a self,
         req: &'a MBReqEntry,
-    ) -> impl Future<Output = Option<MBRespEntry>> + 'a {
+    ) -> impl Future<Output = MBAsyncRPCResult> + 'a {
         self.inner.do_cmd(self.name.as_str(), &self.resolver, req)
     }
     pub fn add_cmd<

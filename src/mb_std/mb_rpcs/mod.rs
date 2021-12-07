@@ -6,6 +6,7 @@ mod memmove;
 mod memset;
 mod print;
 mod svcall;
+mod stop_server;
 pub use c_print::*;
 pub use exit::*;
 pub use file_access::*;
@@ -14,13 +15,25 @@ pub use memmove::*;
 pub use memset::*;
 pub use print::*;
 pub use svcall::*;
+pub use stop_server::*;
 
 use crate::mb_channel::*;
 use crate::mb_std::mb_ptr_resolver::*;
+use crate::mb_rpcs::MBAction;
 use async_std::prelude::*;
 use async_std::task::Context;
 use async_std::task::Poll;
 use std::pin::Pin;
+
+#[derive(Debug)]
+pub enum MBAsyncRPCError {
+    NoResp,
+    Stop,
+    Illegal(MBAction),
+}
+
+pub type MBAsyncRPCResult = Result<MBRespEntry, MBAsyncRPCError>;
+
 pub trait MBAsyncRPC<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>> {
     fn poll_cmd(
         &self,
@@ -28,7 +41,7 @@ pub trait MBAsyncRPC<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER =
         r: &R,
         req: &MBReqEntry,
         cx: &mut Context,
-    ) -> Poll<Option<MBRespEntry>>;
+    ) -> Poll<MBAsyncRPCResult>;
     fn do_cmd<'a>(
         &'a self,
         server_name: &'a str,
@@ -77,7 +90,7 @@ impl<
         RPC: MBAsyncRPC<RA, WA, R>,
     > Future for MBAsyncRPCFuture<'a, RA, WA, R, RPC>
 {
-    type Output = Option<MBRespEntry>;
+    type Output = MBAsyncRPCResult;
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         self.rpc.poll_cmd(self.server_name, self.r, self.req, cx)
     }

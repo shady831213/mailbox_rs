@@ -1,7 +1,7 @@
 use crate::mb_channel::*;
 use crate::mb_rpcs::*;
 extern crate nom;
-use super::MBAsyncRPC;
+use super::{MBAsyncRPC, MBAsyncRPCError, MBAsyncRPCResult};
 use crate::mb_std::mb_async_channel::*;
 use crate::mb_std::mb_ptr_resolver::*;
 use async_std::prelude::*;
@@ -218,7 +218,7 @@ impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER 
         r: &R,
         req: &MBReqEntry,
         _cx: &mut Context,
-    ) -> Poll<Option<MBRespEntry>> {
+    ) -> Poll<MBAsyncRPCResult> {
         let mut c_str_args = MBCStringArgs::default();
         c_str_args.len = req.words;
         c_str_args.fmt_str = req.args[0];
@@ -238,9 +238,9 @@ impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER 
         let s = parser.parse().unwrap();
         print!("[{}] {}", server_name, s);
         Poll::Ready(if c_str_args.rest_args_len() > 0 {
-            Some(MBRespEntry::default())
+            Ok(MBRespEntry::default())
         } else {
-            None
+            Err(MBAsyncRPCError::NoResp)
         })
     }
 }

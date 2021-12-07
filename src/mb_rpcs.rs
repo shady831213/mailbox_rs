@@ -19,6 +19,7 @@ pub enum MBAction {
     MEMCMP = 6,
     SVCALL = 7,
     FILEACCESS = 8,
+    STOPSERVER = 9,
     OTHER = 0x80000000,
 }
 
@@ -47,6 +48,18 @@ impl MBRpc for MBExit {
     }
     fn get_resp(&self, _: &MBRespEntry) -> Self::RESP {}
 }
+
+pub struct MBStopServer;
+
+impl MBRpc for MBStopServer {
+    type REQ = ();
+    type RESP = ();
+    fn put_req(&self, _req: Self::REQ, entry: &mut MBReqEntry) {
+        entry.action = MBAction::STOPSERVER;
+    }
+    fn get_resp(&self, _: &MBRespEntry) -> Self::RESP {}
+}
+
 #[derive(Default)]
 #[repr(C)]
 pub struct MBStringArgs {
@@ -336,7 +349,7 @@ impl MBRpc for MBFClose {
 pub struct MBFReadArgs {
     pub fd: u32,     // -> MBReq.args[1]
     pub ptr: MBPtrT, // -> MBReq.args[2]
-    pub len: MBPtrT, // -> MBReq.args[3]
+    pub len: MBPtrT,    // -> MBReq.args[3]
 }
 
 pub struct MBFRead<'a> {
@@ -371,7 +384,7 @@ impl<'a> MBRpc for MBFRead<'a> {
 pub struct MBFWriteArgs {
     pub fd: u32,     // -> MBReq.args[1]
     pub ptr: MBPtrT, // -> MBReq.args[2]
-    pub len: MBPtrT, // -> MBReq.args[3]
+    pub len: MBPtrT,    // -> MBReq.args[3]
 }
 
 pub struct MBFWrite<'a> {
