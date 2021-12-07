@@ -9,6 +9,20 @@ use std::fs;
 use std::sync::Arc;
 use std::sync::Mutex;
 pub use yaml_rust::{Yaml, YamlLoader};
+pub fn get_yaml_with_ref<'a>(doc: &'a Yaml, key: &str) -> &'a Yaml {
+    let result = &doc[key];
+    match result {
+        Yaml::BadValue => {
+            let refer = &doc["<<"];
+            match refer {
+                Yaml::BadValue => result,
+                _ => get_yaml_with_ref(refer, key),
+            }
+        }
+        _ => result,
+    }
+}
+
 pub struct MBShareMemSpaceBuilder<M: MBShareMemBlock, P: MBShareMemParser<MemType = M>> {
     docs: Vec<Yaml>,
     parser: P,
@@ -46,6 +60,34 @@ impl<M: MBShareMemBlock, P: MBShareMemParser<MemType = M>> MBShareMemSpaceBuilde
         Ok(self)
     }
 
+    fn add_space(&self, mem_space: &mut MBShareMemSpace<M>, doc:&Vec<Yaml>) -> Result<(), String> {
+        for y in doc.iter() {
+            match y {
+                Yaml::Hash(m) => {
+                    let (name, v) = m.front().unwrap();
+                    let n = name.as_str().unwrap();
+                    mem_space
+                        .add_mem(&Arc::new(Mutex::new(self.parser.parse(n, v)?)))
+                        .map_err(|_| {
+                            format!("{:?} is overlapped with other memory!", n)
+                        })?;
+                }
+                Yaml::String(m) => mem_space
+                    .add_mem(
+                        self.shared
+                            .get(m)
+                            .ok_or(format!("Can't get shared mem {:?}!", m))?,
+                    )
+                    .map_err(|_| {
+                        format!("{:?} is overlapped with other memory!", m)
+                    })?,
+                Yaml::Array(a) => self.add_space(mem_space, &a.to_vec())?,
+                _ => return Err(format!("Invalid type {:?}!", y)),
+            }
+        }
+        Ok(())
+    }
+
     pub fn build_spaces(
         mut self,
     ) -> Result<HashMap<String, Arc<Mutex<MBShareMemSpace<M>>>>, String> {
@@ -56,29 +98,7 @@ impl<M: MBShareMemBlock, P: MBShareMemParser<MemType = M>> MBShareMemSpaceBuilde
                     .as_vec()
                     .ok_or(format!("{:?}: mem space should be array!", k))?;
                 let mut mem_space = MBShareMemSpace::<M>::new();
-                for y in s.iter() {
-                    match y {
-                        Yaml::Hash(m) => {
-                            let (name, v) = m.front().unwrap();
-                            let n = name.as_str().unwrap();
-                            mem_space
-                                .add_mem(&Arc::new(Mutex::new(self.parser.parse(n, v)?)))
-                                .map_err(|_| {
-                                    format!("{:?}: {:?} is overlapped with other memory!", k, n)
-                                })?;
-                        }
-                        Yaml::String(m) => mem_space
-                            .add_mem(
-                                self.shared
-                                    .get(m)
-                                    .ok_or(format!("{:?}: Can't get shared mem {:?}!", k, m))?,
-                            )
-                            .map_err(|_| {
-                                format!("{:?}: {:?} is overlapped with other memory!", k, m)
-                            })?,
-                        _ => return Err(format!("{:?}: Invalid type {:?}!", k, y)),
-                    }
-                }
+                self.add_space(&mut mem_space, &s).map_err(|e|{format!("{:?}: {:?}", k, e)})?;
                 self.spaces
                     .insert(k.to_string(), Arc::new(Mutex::new(mem_space)));
             }
@@ -324,6 +344,10 @@ mod test {
         global2:
             base: 0x90000000
             size: 0x10000000
+
+    ref: &ref
+        - global
+        - global2
     space:
         core0:
             - ilm:
@@ -332,8 +356,7 @@ mod test {
             - dlm:
                 base: 4096
                 size: 16384
-            - global
-            - global2
+            - *ref
         core1:
             - dlm:
                 base: 4096
