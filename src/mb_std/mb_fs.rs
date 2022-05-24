@@ -20,7 +20,7 @@ impl MBFileOpener for MBNormalFileOpener {
 }
 
 pub fn mb_open_file(path: &str, flags: u32) -> std::io::Result<File> {
-    Ok(File::with_options()
+    Ok(File::options()
         .create(flags & (MB_FILE_WRITE | MB_FILE_APPEND | MB_FILE_TRUNC) != 0)
         .write(flags & (MB_FILE_WRITE | MB_FILE_APPEND | MB_FILE_TRUNC) != 0)
         .append(flags & MB_FILE_APPEND != 0)

@@ -51,19 +51,26 @@ impl<SM: MBShareMem, T: Sized + Default + Debug> MBQueueShareMem<SM, T> {
             .read_sized(self.base + Self::idx_c_offset(), &mut data);
         data
     }
+    fn clr_p(&self) {
+        let next_p = 0;
+        self.mem
+            .lock()
+            .unwrap()
+            .write_sized(self.base + Self::idx_p_offset(), &next_p);
+    }
+    fn clr_c(&self) {
+        let next_c = 0;
+        self.mem
+            .lock()
+            .unwrap()
+            .write_sized(self.base + Self::idx_c_offset(), &next_c);
+    }
     fn flush_p_entry(&mut self) {
         let cur_p = self.idx_p_masked() as usize;
         self.mem
             .lock()
             .unwrap()
             .write_sized(self.base + Self::entry_offset(cur_p), &self.cur_p_entry);
-    }
-    fn load_p_entry(&mut self) {
-        let cur_p = self.idx_p_masked() as usize;
-        self.mem
-            .lock()
-            .unwrap()
-            .read_sized(self.base + Self::entry_offset(cur_p), &mut self.cur_p_entry);
     }
     fn load_c_entry(&mut self) {
         let cur_c = self.idx_c_masked() as usize;
@@ -88,7 +95,6 @@ impl<SM: MBShareMem, T: Sized + Default + Debug> MBQueueIf<T> for MBQueueShareMe
         idx_flag(self.idx_c())
     }
     fn cur_p_entry_mut(&mut self) -> &mut T {
-        self.load_p_entry();
         &mut self.cur_p_entry
     }
     fn cur_c_entry(&mut self) -> &T {
@@ -146,12 +152,25 @@ impl<SM: MBShareMem> MBChannelShareMem<SM> {
             resp_queue,
         }
     }
-    pub fn with_elf(file: &str, mem: &Arc<Mutex<SM>>, load: bool) -> MBChannelShareMem<SM> {
+    pub fn with_elf(
+        file: &str,
+        mem: &Arc<Mutex<SM>>,
+        load: bool,
+        mb_id: usize,
+    ) -> MBChannelShareMem<SM> {
         use xmas_elf::ElfFile;
-        let mut base: MBPtrT = 0;
+        let mut mb_address: MBPtrT = 0;
         let f = |elf: &ElfFile, _: &str| -> Result<(), String> {
             if let Some(s) = elf.find_section_by_name(".mailbox") {
-                base = s.address() as MBPtrT;
+                let address = s.address() + (std::mem::size_of::<MBChannel>() & mb_id) as u64;
+                let sec_end = s.address() + s.size();
+                if address + std::mem::size_of::<MBChannel>() as u64 > sec_end {
+                    return Err(format!(
+                        "mailbox id {} exceeds .mailbox section bound!",
+                        mb_id
+                    ));
+                }
+                mb_address = address as MBPtrT;
                 Ok(())
             } else {
                 Err("Can't get \".mailbox\" section!".to_string())
@@ -163,11 +182,48 @@ impl<SM: MBShareMem> MBChannelShareMem<SM> {
             use crate::mb_std::utils::process_elf;
             process_elf(file, f).unwrap();
         }
-        MBChannelShareMem::new(base, mem)
+        MBChannelShareMem::new(mb_address, mem)
+    }
+
+    fn state_offset(&self) -> MBPtrT {
+        std::mem::size_of::<u32>() as MBPtrT
     }
 }
 
 impl<SM: MBShareMem> MBChannelIf for MBChannelShareMem<SM> {
+    fn is_ready(&self) -> bool {
+        let mut state: MBState = MBState::INIT;
+        self.mem
+            .lock()
+            .unwrap()
+            .read_sized(self.base + self.state_offset(), &mut state);
+        state == MBState::READY
+    }
+    fn reset_req(&mut self) {
+        let state = MBState::INIT;
+        self.mem
+            .lock()
+            .unwrap()
+            .write_sized(self.base + self.state_offset(), &state);
+        self.req_queue.clr_p();
+        self.req_queue.clr_c();
+        self.resp_queue.clr_p();
+        self.resp_queue.clr_c();
+    }
+    fn reset_ready(&self) -> bool {
+        self.req_queue.idx_p() == 0
+            && self.req_queue.idx_c() == 0
+            && self.resp_queue.idx_p() == 0
+            && self.resp_queue.idx_c() == 0
+    }
+    fn reset_ack(&mut self) {
+        let state = MBState::READY;
+        self.mem
+            .lock()
+            .unwrap()
+            .write_sized(self.base + self.state_offset(), &state);
+    }
+
     fn req_can_get(&self) -> bool {
         !self.req_queue.empty()
     }

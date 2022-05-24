@@ -25,6 +25,6 @@ pub fn mb_stop_server<CH: MBChannelIf>(
     sender: &MBAsyncSender<CH>,
 ) -> impl Future<Output = ()> + '_ {
     async move {
-        sender.send_req(&MBStopServer, ()).await;
+        sender.send_req(&MBStopServer, ()).await
     }
 }

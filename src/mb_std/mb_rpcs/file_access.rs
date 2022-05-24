@@ -135,7 +135,7 @@ pub fn mb_fclose<CH: MBChannelIf>(
 ) -> impl Future<Output = ()> + '_ {
     let fclose_rpc = MBFClose;
     async move {
-        sender.send_req(&fclose_rpc, fd).await;
+        sender.send_req(&fclose_rpc, fd).await
     }
 }
 

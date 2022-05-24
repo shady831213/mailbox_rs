@@ -32,6 +32,6 @@ pub fn mb_exit<CH: MBChannelIf>(
     code: u32,
 ) -> impl Future<Output = ()> + '_ {
     async move {
-        sender.send_req(&MBExit, code).await;
+        sender.send_req(&MBExit, code).await
     }
 }

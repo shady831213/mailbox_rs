@@ -1,11 +1,10 @@
 use crate::mb_rpcs::*;
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 #[repr(u32)]
 pub enum MBState {
     INIT = 0,
-    PREADY = 1,
-    CREADY = 2,
+    READY = 1,
 }
 
 impl Default for MBState {
@@ -94,6 +93,10 @@ impl<T> MBQueueIf<T> for MBQueue<T> {
 }
 
 pub trait MBChannelIf {
+    fn reset_req(&mut self);
+    fn reset_ack(&mut self);
+    fn reset_ready(&self) -> bool;
+    fn is_ready(&self) -> bool;
     fn req_can_get(&self) -> bool;
     fn req_can_put(&self) -> bool;
     fn resp_can_get(&self) -> bool;
@@ -138,6 +141,25 @@ impl MBChannel {
 }
 
 impl MBChannelIf for MBChannel {
+    fn is_ready(&self) -> bool {
+        self.state == MBState::READY
+    }
+    fn reset_req(&mut self) {
+        self.state = MBState::INIT;
+        self.req_queue.idx_p = 0;
+        self.req_queue.idx_c = 0;
+        self.resp_queue.idx_p = 0;
+        self.resp_queue.idx_c = 0;
+    }
+    fn reset_ready(&self) -> bool {
+        self.req_queue.idx_p == 0
+            && self.req_queue.idx_c == 0
+            && self.resp_queue.idx_p == 0
+            && self.resp_queue.idx_c == 0
+    }
+    fn reset_ack(&mut self) {
+        self.state = MBState::READY;
+    }
     fn req_can_get(&self) -> bool {
         !self.req_queue.empty()
     }

@@ -60,7 +60,7 @@ impl<M: MBShareMemBlock, P: MBShareMemParser<MemType = M>> MBShareMemSpaceBuilde
         Ok(self)
     }
 
-    fn add_space(&self, mem_space: &mut MBShareMemSpace<M>, doc:&Vec<Yaml>) -> Result<(), String> {
+    fn add_space(&self, mem_space: &mut MBShareMemSpace<M>, doc: &Vec<Yaml>) -> Result<(), String> {
         for y in doc.iter() {
             match y {
                 Yaml::Hash(m) => {
@@ -68,9 +68,7 @@ impl<M: MBShareMemBlock, P: MBShareMemParser<MemType = M>> MBShareMemSpaceBuilde
                     let n = name.as_str().unwrap();
                     mem_space
                         .add_mem(&Arc::new(Mutex::new(self.parser.parse(n, v)?)))
-                        .map_err(|_| {
-                            format!("{:?} is overlapped with other memory!", n)
-                        })?;
+                        .map_err(|_| format!("{:?} is overlapped with other memory!", n))?;
                 }
                 Yaml::String(m) => mem_space
                     .add_mem(
@@ -78,9 +76,7 @@ impl<M: MBShareMemBlock, P: MBShareMemParser<MemType = M>> MBShareMemSpaceBuilde
                             .get(m)
                             .ok_or(format!("Can't get shared mem {:?}!", m))?,
                     )
-                    .map_err(|_| {
-                        format!("{:?} is overlapped with other memory!", m)
-                    })?,
+                    .map_err(|_| format!("{:?} is overlapped with other memory!", m))?,
                 Yaml::Array(a) => self.add_space(mem_space, &a.to_vec())?,
                 _ => return Err(format!("Invalid type {:?}!", y)),
             }
@@ -98,7 +94,8 @@ impl<M: MBShareMemBlock, P: MBShareMemParser<MemType = M>> MBShareMemSpaceBuilde
                     .as_vec()
                     .ok_or(format!("{:?}: mem space should be array!", k))?;
                 let mut mem_space = MBShareMemSpace::<M>::new();
-                self.add_space(&mut mem_space, &s).map_err(|e|{format!("{:?}: {:?}", k, e)})?;
+                self.add_space(&mut mem_space, &s)
+                    .map_err(|e| format!("{:?}: {:?}", k, e))?;
                 self.spaces
                     .insert(k.to_string(), Arc::new(Mutex::new(mem_space)));
             }
@@ -166,12 +163,14 @@ impl<SM: MBShareMem> MBChannelShareMemSys<SM> {
                 let receiver = MBAsyncReceiver::new(ch.1);
                 async move {
                     loop {
-                        let req = receiver.recv_req().await;
+                        let req = receiver.recv_req(ch.0).await;
                         match server.do_cmd(&req).await {
-                            Ok(r) => receiver.send_resp(r).await,
+                            Ok(r) => receiver.send_resp(r, ch.0).await,
                             Err(MBAsyncRPCError::Stop) => break,
-                            Err(MBAsyncRPCError::Illegal(action)) => panic!("Illegal cmd {:?}", action),
-                            _ => {} 
+                            Err(MBAsyncRPCError::Illegal(action)) => {
+                                panic!("[{}(server)] Illegal cmd {:?}", ch.0, action)
+                            }
+                            _ => {}
                         }
                     }
                 }
@@ -211,7 +210,8 @@ impl<SM: MBShareMem> MBChannelShareMemBuilder<SM> {
             for (key, ch) in chs.iter() {
                 let k = key.as_str().unwrap();
                 let elf = ch["elf"].as_str();
-                let load = ch["load"].as_bool();
+                let load = &ch["load"];
+                let mb_id = ch["mb_id"].as_i64();
                 let base = ch["base"].as_i64();
                 let space_k = ch["space"]
                     .as_str()
@@ -220,11 +220,19 @@ impl<SM: MBShareMem> MBChannelShareMemBuilder<SM> {
                     "{:?}: space {:?} not found in current map!",
                     k, space_k
                 ))?;
+                let mb_id = mb_id.unwrap_or(0) as usize;
                 let ch = if let Some(e) = elf {
-                    if let Some(l) = load {
-                        MBChannelShareMem::with_elf(e, space, l)
+                    if let Some(l) = load.as_bool() {
+                        MBChannelShareMem::with_elf(e, space, l, mb_id)
+                    } else if let Some(ls) = load.as_str() {
+                        let l = if let Ok(ls) = shellexpand::full(ls) {
+                            ls != "false"
+                        } else {
+                            true
+                        };
+                        MBChannelShareMem::with_elf(e, space, l, mb_id)
                     } else {
-                        MBChannelShareMem::with_elf(e, space, true)
+                        MBChannelShareMem::with_elf(e, space, true, mb_id)
                     }
                 } else if let Some(b) = base {
                     MBChannelShareMem::new(b as MBPtrT, space)
@@ -297,9 +305,7 @@ impl<SM: MBShareMem> MBChannelShareMemBuilder<SM> {
 #[cfg(test)]
 mod test {
     use super::*;
-    #[derive(Debug)]
     struct MyShareMem {
-        name: String,
         base: MBPtrT,
         size: MBPtrT,
     }
@@ -324,9 +330,8 @@ mod test {
     struct MyParser;
     impl MBShareMemParser for MyParser {
         type MemType = MyShareMem;
-        fn parse(&self, key: &str, doc: &Yaml) -> Result<Self::MemType, String> {
+        fn parse(&self, _key: &str, doc: &Yaml) -> Result<Self::MemType, String> {
             Ok(MyShareMem {
-                name: key.to_string(),
                 base: doc["base"]
                     .as_i64()
                     .ok_or("base should be integer!".to_string())? as MBPtrT,

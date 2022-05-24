@@ -10,6 +10,13 @@ use std::sync::Mutex;
 use crate::mb_channel::*;
 use crate::mb_rpcs::*;
 
+#[derive(Debug)]
+enum MBAsyncChannelErr {
+    NotReady,
+}
+
+type MBAsyncChannelResult<T> = Result<T, MBAsyncChannelErr>;
+
 pub struct MBAsyncChannel<CH: MBChannelIf> {
     channel: CH,
     c_waker: Option<Waker>,
@@ -37,9 +44,9 @@ impl<CH: MBChannelIf> MBAsyncSender<CH> {
         rpc: &RPC,
         req: REQ,
         cx: &mut Context,
-    ) -> Poll<()> {
+    ) -> Poll<MBAsyncChannelResult<()>> {
         let mut ch = self.0.lock().unwrap();
-        if !ch.channel.req_can_put() {
+        if !ch.channel.req_can_put() || !ch.channel.is_ready() {
             ch.c_waker = Some(cx.waker().clone());
             return Poll::Pending;
         }
@@ -47,10 +54,20 @@ impl<CH: MBChannelIf> MBAsyncSender<CH> {
         if let Some(w) = ch.s_waker.take() {
             w.wake();
         }
-        Poll::Ready(())
+        Poll::Ready(Ok(()))
     }
-    fn try_recv<RESP, RPC: MBRpc<RESP = RESP>>(&self, rpc: &RPC, cx: &mut Context) -> Poll<RESP> {
+    fn try_recv<RESP, RPC: MBRpc<RESP = RESP>>(
+        &self,
+        rpc: &RPC,
+        cx: &mut Context,
+    ) -> Poll<MBAsyncChannelResult<RESP>> {
         let mut ch = self.0.lock().unwrap();
+        if !ch.channel.is_ready() {
+            if let Some(w) = ch.s_waker.take() {
+                w.wake();
+            }
+            return Poll::Ready(Err(MBAsyncChannelErr::NotReady));
+        }
         if !ch.channel.resp_can_get() {
             ch.c_waker = Some(cx.waker().clone());
             return Poll::Pending;
@@ -59,7 +76,18 @@ impl<CH: MBChannelIf> MBAsyncSender<CH> {
         if let Some(w) = ch.s_waker.take() {
             w.wake();
         }
-        Poll::Ready(ret)
+        Poll::Ready(Ok(ret))
+    }
+
+    fn reset_req(&self) {
+        self.0.lock().unwrap().channel.reset_req();
+    }
+
+    pub fn reset<'a>(&'a self) -> impl Future<Output = ()> + 'a {
+        async {
+            self.reset_req();
+            async_std::task::yield_now().await;
+        }
     }
 
     pub fn send_req<'a, REQ: 'a + Copy, RPC: 'a + MBRpc<REQ = REQ>>(
@@ -73,8 +101,10 @@ impl<CH: MBChannelIf> MBAsyncSender<CH> {
             data: req,
         };
         async {
-            req_fut.await;
-            async_std::task::yield_now().await;
+            match req_fut.await {
+                Err(MBAsyncChannelErr::NotReady) => self.reset().await,
+                _ => async_std::task::yield_now().await,
+            }
         }
     }
     pub fn recv_resp<'a, RESP: 'a, RPC: 'a + MBRpc<RESP = RESP>>(
@@ -87,7 +117,7 @@ impl<CH: MBChannelIf> MBAsyncSender<CH> {
             _marker: PhantomData,
         };
         async {
-            let resp = resp_fut.await;
+            let resp = resp_fut.await.expect("Unexpected reset!");
             async_std::task::yield_now().await;
             resp
         }
@@ -103,7 +133,7 @@ struct MBAsyncSenderReq<'a, REQ, RPC, CH: MBChannelIf> {
 impl<'a, REQ: Copy, RPC: MBRpc<REQ = REQ>, CH: MBChannelIf> Future
     for MBAsyncSenderReq<'a, REQ, RPC, CH>
 {
-    type Output = ();
+    type Output = MBAsyncChannelResult<()>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let ret = self.sender.try_send(self.rpc, self.data, cx);
         ret
@@ -119,7 +149,7 @@ struct MBAsyncSenderResp<'a, RESP, RPC, CH: MBChannelIf> {
 impl<'a, RESP, RPC: MBRpc<RESP = RESP>, CH: MBChannelIf> Future
     for MBAsyncSenderResp<'a, RESP, RPC, CH>
 {
-    type Output = RESP;
+    type Output = MBAsyncChannelResult<RESP>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         self.sender.try_recv(self.rpc, cx)
     }
@@ -131,8 +161,14 @@ impl<CH: MBChannelIf> MBAsyncReceiver<CH> {
     pub fn new(ch: &Arc<Mutex<MBAsyncChannel<CH>>>) -> MBAsyncReceiver<CH> {
         MBAsyncReceiver(ch.clone())
     }
-    fn try_recv(&self, cx: &mut Context) -> Poll<MBReqEntry> {
+    fn try_recv(&self, cx: &mut Context) -> Poll<MBAsyncChannelResult<MBReqEntry>> {
         let mut ch = self.0.lock().unwrap();
+        if !ch.channel.is_ready() {
+            if let Some(w) = ch.s_waker.take() {
+                w.wake();
+            }
+            return Poll::Ready(Err(MBAsyncChannelErr::NotReady));
+        }
         if !ch.channel.req_can_get() {
             ch.s_waker = Some(cx.waker().clone());
             return Poll::Pending;
@@ -141,11 +177,17 @@ impl<CH: MBChannelIf> MBAsyncReceiver<CH> {
         if let Some(w) = ch.c_waker.take() {
             w.wake();
         }
-        Poll::Ready(req)
+        Poll::Ready(Ok(req))
     }
 
-    fn try_send(&self, resp: MBRespEntry, cx: &mut Context) -> Poll<()> {
+    fn try_send(&self, resp: MBRespEntry, cx: &mut Context) -> Poll<MBAsyncChannelResult<()>> {
         let mut ch = self.0.lock().unwrap();
+        if !ch.channel.is_ready() {
+            if let Some(w) = ch.s_waker.take() {
+                w.wake();
+            }
+            return Poll::Ready(Err(MBAsyncChannelErr::NotReady));
+        }
         if !ch.channel.resp_can_put() {
             ch.s_waker = Some(cx.waker().clone());
             return Poll::Pending;
@@ -154,20 +196,72 @@ impl<CH: MBChannelIf> MBAsyncReceiver<CH> {
         if let Some(w) = ch.c_waker.take() {
             w.wake();
         }
+        Poll::Ready(Ok(()))
+    }
+
+    fn wait_reset(&self, cx: &mut Context) -> Poll<()> {
+        let mut ch = self.0.lock().unwrap();
+        if !ch.channel.reset_ready() {
+            ch.s_waker = Some(cx.waker().clone());
+            return Poll::Pending;
+        }
+        ch.channel.reset_ack();
+        if let Some(w) = ch.c_waker.take() {
+            w.wake();
+        }
         Poll::Ready(())
     }
 
-    pub fn recv_req<'a>(&'a self) -> impl Future<Output = MBReqEntry> + 'a {
-        let req_fut = MBAsyncReceiverReq { receiver: self };
-        req_fut
+    pub fn reset<'a>(&'a self) -> impl Future<Output = ()> + 'a {
+        let fut = MBAsyncReceiverReset { receiver: self };
+        fut
     }
 
-    pub fn send_resp<'a>(&'a self, resp: MBRespEntry) -> impl Future<Output = ()> + 'a {
+    fn recv_one_req<'a>(
+        &'a self,
+        server_tag: &'a str,
+    ) -> impl Future<Output = Option<MBReqEntry>> + 'a {
+        let req_fut = MBAsyncReceiverReq { receiver: self };
+        async move {
+            match req_fut.await {
+                Err(MBAsyncChannelErr::NotReady) => {
+                    self.reset().await;
+                    println!("[{}(server)] reset detected when recv req!", server_tag);
+                    None
+                }
+                Ok(req) => Some(req),
+            }
+        }
+    }
+
+    pub fn recv_req<'a>(&'a self, server_tag: &'a str) -> impl Future<Output = MBReqEntry> + 'a {
+        async {
+            loop {
+                if let Some(req) = self.recv_one_req(server_tag).await.take() {
+                    return req;
+                }
+            }
+        }
+    }
+
+    pub fn send_resp<'a>(
+        &'a self,
+        resp: MBRespEntry,
+        server_tag: &'a str,
+    ) -> impl Future<Output = ()> + 'a {
         let resp_fut = MBAsyncReceiverResp {
             receiver: self,
             resp,
         };
-        resp_fut
+        async move {
+            match resp_fut.await {
+                Err(MBAsyncChannelErr::NotReady) => {
+                    self.reset().await;
+                    println!("[{}(server)] reset detected when send resp!", server_tag);
+                }
+                _ => {}
+            }
+        }
     }
 }
 
@@ -176,9 +270,20 @@ struct MBAsyncReceiverReq<'a, CH: MBChannelIf> {
 }
 
 impl<'a, CH: MBChannelIf> Future for MBAsyncReceiverReq<'a, CH> {
-    type Output = MBReqEntry;
+    type Output = MBAsyncChannelResult<MBReqEntry>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         self.receiver.try_recv(cx)
+    }
+}
+
+struct MBAsyncReceiverReset<'a, CH: MBChannelIf> {
+    receiver: &'a MBAsyncReceiver<CH>,
+}
+
+impl<'a, CH: MBChannelIf> Future for MBAsyncReceiverReset<'a, CH> {
+    type Output = ();
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        self.receiver.wait_reset(cx)
     }
 }
 
@@ -188,7 +293,7 @@ struct MBAsyncReceiverResp<'a, CH: MBChannelIf> {
 }
 
 impl<'a, CH: MBChannelIf> Future for MBAsyncReceiverResp<'a, CH> {
-    type Output = ();
+    type Output = MBAsyncChannelResult<()>;
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         self.receiver.try_send(self.resp, cx)
     }

@@ -37,6 +37,6 @@ pub fn mb_print<'a, CH: MBChannelIf>(
             ptr: msg.as_ptr() as MBPtrT,
         };
         sender.send_req(&print_rpc, &str_args).await;
-        sender.recv_resp(&print_rpc).await;
+        sender.recv_resp(&print_rpc).await
     }
 }
