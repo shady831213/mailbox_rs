@@ -44,12 +44,7 @@ impl<M: MBShareMemBlock> MBShareMem for MBShareMemSpace<M> {
     }
     fn read(&self, addr: MBPtrT, data: &mut [u8]) -> usize {
         if let Some(m) = self.find_mem_by_addr(addr) {
-            let r = m.lock().unwrap().read(addr, data);
-            if r > 0 && r < data.len() {
-                self.read(addr + r as MBPtrT, &mut data[r..])
-            } else {
-                r
-            }
+            m.lock().unwrap().read(addr, data)
         } else {
             panic!("no memory found for addr {:x}!", addr)
         }
