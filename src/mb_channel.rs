@@ -1,6 +1,6 @@
 use crate::mb_rpcs::*;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 #[repr(u32)]
 pub enum MBState {
     INIT = 0,
@@ -56,7 +56,7 @@ pub trait MBQueueIf<T> {
     fn advance_c(&mut self);
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Copy, Clone)]
 #[repr(C)]
 pub struct MBQueue<T> {
     id: u32,
@@ -106,7 +106,7 @@ pub trait MBChannelIf {
     fn get_resp<RESP, M: MBRpc<RESP = RESP>>(&mut self, master: &M) -> RESP;
     fn put_resp(&mut self, resp: MBRespEntry);
 }
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Copy, Clone)]
 #[repr(C)]
 pub struct MBChannel {
     id: u32,
