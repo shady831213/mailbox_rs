@@ -162,7 +162,7 @@ impl<SM: MBShareMem> MBChannelShareMem<SM> {
         let mut mb_address: MBPtrT = 0;
         let f = |elf: &ElfFile, _: &str| -> Result<(), String> {
             if let Some(s) = elf.find_section_by_name(".mailbox") {
-                let address = s.address() + (std::mem::size_of::<MBChannel>() & mb_id) as u64;
+                let address = s.address() + (std::mem::size_of::<MBChannel>() * mb_id) as u64;
                 let sec_end = s.address() + s.size();
                 if address + std::mem::size_of::<MBChannel>() as u64 > sec_end {
                     return Err(format!(
