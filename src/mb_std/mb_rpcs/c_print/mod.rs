@@ -1,15 +1,91 @@
 use crate::mb_channel::*;
 use crate::mb_rpcs::*;
-extern crate nom;
+mod sprintf;
 use super::{MBAsyncRPC, MBAsyncRPCError, MBAsyncRPCResult};
 use crate::mb_std::mb_async_channel::*;
 use crate::mb_std::mb_ptr_resolver::*;
 use async_std::prelude::*;
 use async_std::task::Context;
 use async_std::task::Poll;
-use nom::{branch::alt, bytes::complete::*, character::complete::*, IResult};
+use sprintf::{vsprintf, ConversionSpecifier, ConversionType, Printf, PrintfError};
 use std::fmt::{self, Debug, Display, Formatter};
-use std::slice::Iter;
+
+struct CPrintArg<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>> {
+    arg: MBPtrT,
+    r: &'a R,
+}
+
+impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>>
+    CPrintArg<'a, RA, WA, R>
+{
+    fn new(arg: MBPtrT, r: &'a R) -> Self {
+        CPrintArg { arg, r }
+    }
+}
+
+impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>> Printf
+    for CPrintArg<'a, RA, WA, R>
+{
+    fn format(&self, spec: &ConversionSpecifier) -> sprintf::Result<String> {
+        match spec.conversion_type {
+            // integer format
+            ConversionType::DecInt
+            | ConversionType::OctInt
+            | ConversionType::HexIntLower
+            | ConversionType::HexIntUpper => {
+                if spec.long_long && std::mem::size_of::<MBPtrT>() < std::mem::size_of::<u64>() {
+                    Err(PrintfError::Other(
+                        "long long int is not supported".to_string(),
+                    ))
+                } else {
+                    self.arg.format(spec)
+                }
+            }
+            // char format
+            ConversionType::Char => self.arg.format(spec),
+            // string format
+            ConversionType::String => {
+                let c_str = self
+                    .r
+                    .read_c_str(self.arg as *const u8)
+                    .map_err(|e| PrintfError::Other(e))?;
+                c_str.format(spec)
+            }
+            // float format
+            ConversionType::SciFloatLower
+            | ConversionType::SciFloatUpper
+            | ConversionType::DecFloatLower
+            | ConversionType::DecFloatUpper
+            | ConversionType::CompactFloatLower
+            | ConversionType::CompactFloatUpper => {
+                if spec.long_long {
+                    Err(PrintfError::Other(
+                        "long double is not supported".to_string(),
+                    ))
+                } else if spec.long {
+                    if std::mem::size_of::<MBPtrT>() < std::mem::size_of::<f64>() {
+                        Err(PrintfError::Other("double is not supported".to_string()))
+                    } else {
+                        f64::from_bits(self.arg as u64).format(spec)
+                    }
+                } else {
+                    f32::from_bits(self.arg as u32).format(spec)
+                }
+            }
+            _ => Err(PrintfError::WrongType),
+        }
+    }
+    fn as_int(&self, spec: &ConversionSpecifier) -> Option<i32> {
+        match spec.conversion_type {
+            // integer format
+            ConversionType::DecInt
+            | ConversionType::OctInt
+            | ConversionType::HexIntLower
+            | ConversionType::HexIntUpper => self.arg.as_int(spec),
+            _ => None,
+        }
+    }
+}
 
 #[derive(Debug)]
 struct MBCFmtError {
@@ -34,90 +110,14 @@ impl Display for MBCFmtError {
 enum MBCParseError {
     IOError(String),
     ParseError(String),
-    FmtError(String),
 }
 impl Display for MBCParseError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             MBCParseError::IOError(e) => write!(f, "MBCParseError::IOError{}", e),
             MBCParseError::ParseError(e) => write!(f, "MBCParseError::ParseError{}", e),
-            MBCParseError::FmtError(e) => write!(f, "MBCParseError::FmtError{}", e),
         }
     }
-}
-
-impl<E: Debug> From<nom::Err<E>> for MBCParseError {
-    fn from(e: nom::Err<E>) -> MBCParseError {
-        MBCParseError::ParseError(e.to_string())
-    }
-}
-
-#[derive(Debug)]
-enum MBCStringToken {
-    FMT(char),
-    ORIGIN(String),
-}
-impl MBCStringToken {
-    fn get_string<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>>(
-        &self,
-        arg: &mut Iter<MBPtrT>,
-        r: &R,
-    ) -> Result<String, MBCParseError> {
-        match self {
-            MBCStringToken::FMT(c) => {
-                if let Some(data) = arg.next() {
-                    match c {
-                        'd' => Ok(format!("{}", *data)),
-                        'x' => Ok(format!("{:#x}", *data)),
-                        's' => {
-                            let c_str = r
-                                .read_c_str(*data as *const u8)
-                                .map_err(|e| MBCParseError::IOError(e))?;
-                            Ok(c_str.to_string())
-                        }
-                        'f' => Ok(format!(
-                            "{:.10}",
-                            f32::from_bits(*data as u32)
-                        )),
-                        _ => Err(MBCParseError::FmtError(format!(
-                            "Format \"%{}\" is not support! Only support \"%d\", \"%x\", \"%s\", \"%f\"!",
-                            c
-                        ))),
-                    }
-                } else {
-                    Err(MBCParseError::FmtError(
-                        "number of args does not match format!".to_string(),
-                    ))
-                }
-            }
-            MBCStringToken::ORIGIN(s) => Ok(format!("{}", s)),
-        }
-    }
-}
-
-impl From<char> for MBCStringToken {
-    fn from(value: char) -> Self {
-        MBCStringToken::FMT(value)
-    }
-}
-
-fn parse_str<'a>(s: &'a str) -> IResult<&'a str, MBCStringToken> {
-    let (s, origin) = take_till(|c| c == '\\' || c == '%')(s)?;
-    Ok((s, MBCStringToken::ORIGIN(origin.to_string())))
-}
-fn parse_escaped<'a>(s: &'a str) -> IResult<&'a str, MBCStringToken> {
-    let (s, _) = tag("\\")(s)?;
-    let (s, token) = anychar(s)?;
-    Ok((s, MBCStringToken::ORIGIN(token.to_string())))
-}
-fn parse_fmt<'a>(s: &'a str) -> IResult<&'a str, MBCStringToken> {
-    let (s, _) = tag("%")(s)?;
-    let (s, t) = anychar(s)?;
-    Ok((s, MBCStringToken::from(t)))
-}
-
-fn parse_symbol<'a>(s: &'a str) -> IResult<&'a str, MBCStringToken> {
-    alt((parse_escaped, parse_fmt))(s)
 }
 
 struct MBCStringFmtParser<
@@ -126,7 +126,6 @@ struct MBCStringFmtParser<
     WA: MBPtrWriter,
     R: MBPtrResolver<READER = RA, WRITER = WA>,
 > {
-    buffer: String,
     fmt_str: String,
     file: String,
     pos: u32,
@@ -159,7 +158,6 @@ impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER 
             }
         })?;
         Ok(MBCStringFmtParser {
-            buffer: String::new(),
             fmt_str,
             file,
             pos,
@@ -167,45 +165,17 @@ impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER 
             r,
         })
     }
-    fn parse_next<'b, F: FnMut(&str) -> IResult<&str, MBCStringToken>>(
-        &mut self,
-        s: &'b str,
-        args: &mut Iter<MBPtrT>,
-        mut parser: F,
-    ) -> Result<&'b str, MBCFmtError> {
-        let (s, t) = parser(s).map_err(|e| MBCFmtError {
-            e: MBCParseError::from(e),
-            file: self.file.to_string(),
+    fn parse(&self) -> Result<String, MBCFmtError> {
+        let args: Vec<CPrintArg<_, _, _>> = self
+            .args
+            .iter()
+            .map(|a| CPrintArg::new(*a, self.r))
+            .collect();
+        vsprintf(&self.fmt_str, &args).map_err(|e| MBCFmtError {
+            e: MBCParseError::ParseError(format!("{:?}", e)),
+            file: self.file.clone(),
             pos: self.pos,
-        })?;
-        let result = t.get_string(args, self.r).map_err(|e| MBCFmtError {
-            e,
-            file: self.file.to_string(),
-            pos: self.pos,
-        })?;
-        self.buffer += &result;
-        Ok(s)
-    }
-    fn parser_inner<'b>(
-        &mut self,
-        s: &'b str,
-        args: &mut Iter<MBPtrT>,
-    ) -> Result<&'b str, MBCFmtError> {
-        let s = self.parse_next(s, args, parse_str)?;
-        if s.len() == 0 {
-            return Ok(s);
-        }
-        let s = self.parse_next(s, args, parse_symbol)?;
-        if s.len() == 0 {
-            return Ok(s);
-        }
-        self.parser_inner(s, args)
-    }
-    fn parse(&mut self) -> Result<String, MBCFmtError> {
-        let mut arg_iter = self.args.iter();
-        let fmt_str = self.fmt_str.to_owned();
-        self.parser_inner(&fmt_str, &mut arg_iter)?;
-        Ok(self.buffer.to_owned())
+        })
     }
 }
 
@@ -234,7 +204,7 @@ impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER 
                 &mut c_str_args.args[rest_args_pos..],
             );
         }
-        let mut parser = MBCStringFmtParser::new(&c_str_args, r).unwrap();
+        let parser = MBCStringFmtParser::new(&c_str_args, r).unwrap();
         let s = parser.parse().unwrap();
         print!("[{}] {}", server_name, s);
         Poll::Ready(if c_str_args.rest_args_len() > 0 {

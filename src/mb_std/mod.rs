@@ -153,7 +153,7 @@ mod tests {
                     let file = "mb_cprint_test\0";
                     let pos = line!();
                     let fmt_str =
-                        "mb_cprint_test \\ \\% %d, %x, %f, %s, %d, %d, %d, %d, %d, %d!\n\0";
+                        "mb_cprint_test \\ %% %d, %x, %f, %s, %d, %d, %d, %d, %d, %#llx!\n\0";
                     let s = "my s\0";
                     let args: Vec<MBPtrT> = vec![
                         i as MBPtrT,
