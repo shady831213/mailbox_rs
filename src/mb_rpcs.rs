@@ -293,7 +293,7 @@ impl<'a> MBRpc for MBMemCmp<'a> {
         // entry.args[2] = req.len;
     }
     fn get_resp(&self, resp: &MBRespEntry) -> Self::RESP {
-        resp.rets as i32
+        resp.get_rets() as i32
     }
 }
 
