@@ -24,7 +24,30 @@ pub const fn idx_flag(ptr: u32) -> bool {
     (ptr >> (MB_MAX_ENTRIES.trailing_zeros() as u32)) & 0x1 == 0
 }
 
-#[derive(Default, Debug, Copy, Clone)]
+macro_rules! io_read32 {
+    ($ptr:expr) => {
+        unsafe { ($ptr as *const u32).read_volatile() }
+    };
+}
+macro_rules! io_write32 {
+    ($ptr:expr, $value:expr) => {
+        unsafe { ($ptr as *mut u32).write_volatile($value as u32) }
+    };
+}
+
+macro_rules! io_read_mbptr {
+    ($ptr:expr) => {
+        unsafe { ($ptr as *const MBPtrT).read_volatile() }
+    };
+}
+
+macro_rules! io_write_mbptr {
+    ($ptr:expr, $value:expr) => {
+        unsafe { ($ptr as *mut MBPtrT).write_volatile($value as MBPtrT) }
+    };
+}
+
+#[derive(Default, Debug, Copy)]
 #[repr(C)]
 pub struct MBReqEntry {
     pub action: MBAction,
@@ -32,11 +55,53 @@ pub struct MBReqEntry {
     pub args: [MBPtrT; MB_MAX_ARGS],
 }
 
-#[derive(Default, Debug, Copy, Clone)]
+impl MBReqEntry {
+    pub fn set_action(&mut self, v: MBAction) {
+        io_write32!(&mut self.action as *mut MBAction, v)
+    }
+    pub fn set_words(&mut self, v: u32) {
+        io_write32!(&mut self.words, v)
+    }
+    pub fn set_args(&mut self, i: usize, v: MBPtrT) {
+        io_write_mbptr!(&mut self.args[i], v)
+    }
+}
+
+impl Clone for MBReqEntry {
+    fn clone(&self) -> Self {
+        let mut entry = MBReqEntry {
+            words: io_read32!(&self.words),
+            action: MBAction::from(io_read32!(&self.action as *const MBAction)),
+            args: [0; MB_MAX_ARGS],
+        };
+        for i in 0..MB_MAX_ARGS {
+            let v = io_read_mbptr!(&self.args[i]);
+            io_write_mbptr!(&mut entry.args[i], v);
+        }
+        entry
+    }
+}
+
+#[derive(Default, Debug, Copy)]
 #[repr(C)]
 pub struct MBRespEntry {
     pub words: u32,
     pub rets: MBPtrT,
+}
+
+impl MBRespEntry {
+    pub fn get_rets(&self) -> MBPtrT {
+        io_read_mbptr!(&self.rets)
+    }
+}
+
+impl Clone for MBRespEntry {
+    fn clone(&self) -> Self {
+        MBRespEntry {
+            words: io_read32!(&self.words),
+            rets: io_read_mbptr!(&self.rets),
+        }
+    }
 }
 
 pub trait MBQueueIf<T> {
@@ -67,16 +132,16 @@ pub struct MBQueue<T> {
 
 impl<T> MBQueueIf<T> for MBQueue<T> {
     fn idx_p_masked(&self) -> u32 {
-        idx_masked(self.idx_p)
+        idx_masked(io_read32!(&self.idx_p))
     }
     fn idx_c_masked(&self) -> u32 {
-        idx_masked(self.idx_c)
+        idx_masked(io_read32!(&self.idx_c))
     }
     fn idx_p_flag(&self) -> bool {
-        idx_flag(self.idx_p)
+        idx_flag(io_read32!(&self.idx_p))
     }
     fn idx_c_flag(&self) -> bool {
-        idx_flag(self.idx_c)
+        idx_flag(io_read32!(&self.idx_c))
     }
     fn cur_p_entry_mut(&mut self) -> &mut T {
         &mut self.queue[self.idx_p_masked() as usize]
@@ -85,10 +150,12 @@ impl<T> MBQueueIf<T> for MBQueue<T> {
         &self.queue[self.idx_c_masked() as usize]
     }
     fn advance_p(&mut self) {
-        self.idx_p = self.idx_p.wrapping_add(1);
+        let v = io_read32!(&self.idx_p).wrapping_add(1);
+        io_write32!(&mut self.idx_p, v);
     }
     fn advance_c(&mut self) {
-        self.idx_c = self.idx_c.wrapping_add(1);
+        let v = io_read32!(&self.idx_c).wrapping_add(1);
+        io_write32!(&mut self.idx_c, v);
     }
 }
 
@@ -142,23 +209,23 @@ impl MBChannel {
 
 impl MBChannelIf for MBChannel {
     fn is_ready(&self) -> bool {
-        self.state == MBState::READY
+        io_read32!(&self.state as *const MBState) == MBState::READY as u32
     }
     fn reset_req(&mut self) {
-        self.state = MBState::INIT;
-        self.req_queue.idx_p = 0;
-        self.req_queue.idx_c = 0;
-        self.resp_queue.idx_p = 0;
-        self.resp_queue.idx_c = 0;
+        io_write32!(&mut self.state as *mut MBState, MBState::INIT);
+        io_write32!(&mut self.req_queue.idx_p, 0);
+        io_write32!(&mut self.req_queue.idx_c, 0);
+        io_write32!(&mut self.resp_queue.idx_p, 0);
+        io_write32!(&mut self.resp_queue.idx_c, 0);
     }
     fn reset_ready(&self) -> bool {
-        self.req_queue.idx_p == 0
-            && self.req_queue.idx_c == 0
-            && self.resp_queue.idx_p == 0
-            && self.resp_queue.idx_c == 0
+        io_read32!(&self.req_queue.idx_p) == 0
+            && io_read32!(&self.req_queue.idx_c) == 0
+            && io_read32!(&self.resp_queue.idx_p) == 0
+            && io_read32!(&self.resp_queue.idx_p) == 0
     }
     fn reset_ack(&mut self) {
-        self.state = MBState::READY;
+        io_write32!(&mut self.state as *mut MBState, MBState::READY);
     }
     fn req_can_get(&self) -> bool {
         !self.req_queue.empty()
