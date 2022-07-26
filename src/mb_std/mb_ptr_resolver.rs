@@ -78,7 +78,7 @@ impl MBPtrReader for MBLocalPtrReader {
             std::slice::from_raw_parts_mut(data.as_mut_ptr() as *mut T, data.len())
                 .copy_from_slice(std::slice::from_raw_parts(self.ptr as *const T, data.len()))
         };
-        data.len()
+        std::mem::size_of::<T>() * data.len()
     }
     fn read_sized<T: Sized>(&mut self, data: &mut T) {
         unsafe {
@@ -119,7 +119,7 @@ impl MBPtrWriter for MBLocalPtrWriter {
             std::slice::from_raw_parts_mut(self.ptr as *mut T, data.len())
                 .copy_from_slice(std::slice::from_raw_parts(data.as_ptr(), data.len()))
         };
-        data.len()
+        std::mem::size_of::<T>() * data.len()
     }
     fn write_sized<T: Sized>(&mut self, data: &T) {
         unsafe {
