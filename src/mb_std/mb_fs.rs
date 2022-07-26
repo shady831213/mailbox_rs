@@ -263,7 +263,8 @@ impl MBFs {
     ) -> std::io::Result<usize> {
         let mut buf = vec![0u8; len];
         let ret_len = self.inner.lock().unwrap().read(&fd, &mut buf)?;
-        Ok(r.try_write_slice(ptr, &buf[..ret_len]))
+        r.write_slice(ptr, &buf[..ret_len]);
+        Ok(ret_len)
     }
     pub fn write<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>>(
         &self,

@@ -82,11 +82,19 @@ mod tests {
             }
         }
     }
+    impl MBShareMemBlock for ShareMem {
+        fn base(&self) -> MBPtrT {
+            self.base
+        }
+        fn size(&self) -> MBPtrT {
+            self.mem.len()
+        }
+    }
     impl MBShareMem for ShareMem {
         fn write(&mut self, addr: MBPtrT, data: &[u8]) -> usize {
             let offset = addr as usize - self.base;
             let len = if offset + data.len() > self.mem.len() {
-                offset + data.len() - self.mem.len()
+                self.mem.len() - offset
             } else {
                 data.len()
             };
@@ -96,7 +104,7 @@ mod tests {
         fn read(&self, addr: MBPtrT, data: &mut [u8]) -> usize {
             let offset = addr as usize - self.base;
             let len = if offset + data.len() > self.mem.len() {
-                offset + data.len() - self.mem.len()
+                self.mem.len() - offset
             } else {
                 data.len()
             };
@@ -107,9 +115,17 @@ mod tests {
 
     #[test]
     fn mb_std_share_mem() {
-        let share_mem = Arc::new(Mutex::new(ShareMem::new(0, 1024)));
+        let space = Arc::new(Mutex::new(MBShareMemSpace::<ShareMem>::new()));
+        let share_mem0 = Arc::new(Mutex::new(ShareMem::new(0, 1024)));
+        let share_mem1 = Arc::new(Mutex::new(ShareMem::new(1024, 1024)));
+        space.lock().unwrap().add_mem(&share_mem0).unwrap();
+        space.lock().unwrap().add_mem(&share_mem1).unwrap();
+        assert_eq!(space.lock().unwrap().write(1022, &[1, 2, 3]), 3);
+        let mut data: [u8; 3] = [0; 3];
+        assert_eq!(space.lock().unwrap().read(1022, &mut data), 2);
+        assert_eq!(data, [1, 2, 0]);
         let channel = Arc::new(Mutex::new(MBAsyncChannel::new(MBChannelShareMem::new(
-            0, &share_mem,
+            0, &space,
         ))));
         let server = MBLocalServer::new("server", &Arc::new(None));
         let sender = MBAsyncSender::new(&channel);

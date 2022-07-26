@@ -34,7 +34,7 @@ impl<M: MBShareMemBlock> MBShareMem for MBShareMemSpace<M> {
         if let Some(m) = self.find_mem_by_addr(addr) {
             let r = m.lock().unwrap().write(addr, data);
             if r > 0 && r < data.len() {
-                self.write(addr + r as MBPtrT, &data[r..])
+                r + self.write(addr + r as MBPtrT, &data[r..])
             } else {
                 r
             }
