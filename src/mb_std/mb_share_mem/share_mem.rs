@@ -82,27 +82,35 @@ pub trait MBShareMem {
     }
 
     fn write_slice<T: Sized>(&mut self, addr: MBPtrT, data: &[T]) {
-        let len = self.write(addr, unsafe {
-            std::slice::from_raw_parts(
-                (data.as_ptr() as *const T) as *const u8,
-                std::mem::size_of::<T>() * data.len(),
-            )
-        });
+        let len = self.try_write_slice(addr, data);
         if len != std::mem::size_of::<T>() * data.len() {
             panic!("write_slice @ {:#x} misatched!", addr)
         }
     }
 
     fn read_slice<T: Sized>(&self, addr: MBPtrT, data: &mut [T]) {
-        let len = self.read(addr, unsafe {
+        let len = self.try_read_slice(addr, data);
+        if len != std::mem::size_of::<T>() * data.len() {
+            panic!("read_slice @ {:#x} misatched!", addr)
+        }
+    }
+
+    fn try_write_slice<T: Sized>(&mut self, addr: MBPtrT, data: &[T]) -> usize {
+        self.write(addr, unsafe {
+            std::slice::from_raw_parts(
+                (data.as_ptr() as *const T) as *const u8,
+                std::mem::size_of::<T>() * data.len(),
+            )
+        })
+    }
+
+    fn try_read_slice<T: Sized>(&self, addr: MBPtrT, data: &mut [T]) -> usize {
+        self.read(addr, unsafe {
             std::slice::from_raw_parts_mut(
                 (data.as_mut_ptr() as *mut T) as *mut u8,
                 std::mem::size_of::<T>() * data.len(),
             )
-        });
-        if len != std::mem::size_of::<T>() * data.len() {
-            panic!("read_slice @ {:#x} misatched!", addr)
-        }
+        })
     }
 
     fn load_elf(&mut self, file: &str) -> Result<(), String> {

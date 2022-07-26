@@ -6,11 +6,13 @@ use std::sync::Mutex;
 
 pub trait MBPtrReader: Read {
     fn read_slice<T: Sized + Copy>(&mut self, data: &mut [T]);
+    fn try_read_slice<T: Sized + Copy>(&mut self, data: &mut [T]) -> usize;
     fn read_sized<T: Sized>(&mut self, data: &mut T);
 }
 
 pub trait MBPtrWriter: Write {
     fn write_slice<T: Sized + Copy>(&mut self, data: &[T]);
+    fn try_write_slice<T: Sized + Copy>(&mut self, data: &[T]) -> usize;
     fn write_sized<T: Sized>(&mut self, data: &T);
 }
 
@@ -22,11 +24,17 @@ pub trait MBPtrResolver {
     fn read_slice<T: Sized + Copy>(&self, ptr: *const T, data: &mut [T]) {
         self.reader(ptr).read_slice(data)
     }
+    fn try_read_slice<T: Sized + Copy>(&self, ptr: *const T, data: &mut [T]) -> usize {
+        self.reader(ptr).try_read_slice(data)
+    }
     fn read_sized<T: Sized>(&self, ptr: *const T, data: &mut T) {
         self.reader(ptr).read_sized(data)
     }
     fn write_slice<T: Sized + Copy>(&self, ptr: *mut T, data: &[T]) {
         self.writer(ptr).write_slice(data)
+    }
+    fn try_write_slice<T: Sized + Copy>(&self, ptr: *mut T, data: &[T]) -> usize {
+        self.writer(ptr).try_write_slice(data)
     }
     fn write_sized<T: Sized>(&self, ptr: *mut T, data: &T) {
         self.writer(ptr).write_sized(data)
@@ -63,10 +71,14 @@ impl MBLocalPtrReader {
 }
 impl MBPtrReader for MBLocalPtrReader {
     fn read_slice<T: Sized + Copy>(&mut self, data: &mut [T]) {
+        self.try_read_slice(data);
+    }
+    fn try_read_slice<T: Sized + Copy>(&mut self, data: &mut [T]) -> usize {
         unsafe {
             std::slice::from_raw_parts_mut(data.as_mut_ptr() as *mut T, data.len())
                 .copy_from_slice(std::slice::from_raw_parts(self.ptr as *const T, data.len()))
-        }
+        };
+        data.len()
     }
     fn read_sized<T: Sized>(&mut self, data: &mut T) {
         unsafe {
@@ -100,10 +112,14 @@ impl MBLocalPtrWriter {
 }
 impl MBPtrWriter for MBLocalPtrWriter {
     fn write_slice<T: Sized + Copy>(&mut self, data: &[T]) {
+        self.try_write_slice(data);
+    }
+    fn try_write_slice<T: Sized + Copy>(&mut self, data: &[T]) -> usize {
         unsafe {
             std::slice::from_raw_parts_mut(self.ptr as *mut T, data.len())
                 .copy_from_slice(std::slice::from_raw_parts(data.as_ptr(), data.len()))
-        }
+        };
+        data.len()
     }
     fn write_sized<T: Sized>(&mut self, data: &T) {
         unsafe {
@@ -157,6 +173,9 @@ impl<SM: MBShareMem> MBPtrReader for MBSMPtrReaderWrtier<SM> {
     fn read_slice<T: Sized + Copy>(&mut self, data: &mut [T]) {
         self.sm.lock().unwrap().read_slice(self.ptr, data);
     }
+    fn try_read_slice<T: Sized + Copy>(&mut self, data: &mut [T]) -> usize {
+        self.sm.lock().unwrap().try_read_slice(self.ptr, data)
+    }
     fn read_sized<T: Sized>(&mut self, data: &mut T) {
         self.sm.lock().unwrap().read_sized(self.ptr, data);
     }
@@ -171,6 +190,9 @@ impl<SM: MBShareMem> Read for MBSMPtrReaderWrtier<SM> {
 impl<SM: MBShareMem> MBPtrWriter for MBSMPtrReaderWrtier<SM> {
     fn write_slice<T: Sized + Copy>(&mut self, data: &[T]) {
         self.sm.lock().unwrap().write_slice(self.ptr, data);
+    }
+    fn try_write_slice<T: Sized + Copy>(&mut self, data: &[T]) -> usize {
+        self.sm.lock().unwrap().try_write_slice(self.ptr, data)
     }
     fn write_sized<T: Sized>(&mut self, data: &T) {
         self.sm.lock().unwrap().write_sized(self.ptr, data);
