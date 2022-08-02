@@ -213,10 +213,13 @@ impl MBFs {
         }
         let file_path = self.root.join(&path_expand);
         if path_expand.starts_with("virtual") {
-            if let Some(opener) = self
-                .virtual_openers
-                .get(path_expand.file_name().unwrap().to_str().unwrap())
-            {
+            if let Some(opener) = self.virtual_openers.get(
+                path_expand
+                    .strip_prefix("virtual/")
+                    .unwrap()
+                    .to_str()
+                    .unwrap(),
+            ) {
                 return opener.open(file_path.to_str().unwrap(), flags);
             } else {
                 return Err(into_io_error(
@@ -525,12 +528,12 @@ mod test {
     fn mb_fs_virtual_test() {
         let fs = MBFs::with_virtual("resources", |table| {
             table
-                .insert("virt".to_string(), Box::new(VirtFileOpener))
+                .insert("virt/virt".to_string(), Box::new(VirtFileOpener))
                 .map_or(Ok(()), |_| Err("virt exists!".to_string()))
         })
         .unwrap();
         let fd = fs
-            .open("virtual/virt", MB_FILE_WRITE | MB_FILE_READ)
+            .open("virtual/virt/virt", MB_FILE_WRITE | MB_FILE_READ)
             .unwrap();
         let resolver = MBLocalPtrResolver::default();
         let data = b"Hello World!";
