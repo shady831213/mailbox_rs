@@ -13,7 +13,7 @@ impl Default for MBState {
     }
 }
 
-pub const MB_MAX_ARGS: usize = 8;
+pub const MB_MAX_ARGS: usize = 16;
 pub const MB_MAX_ENTRIES: usize = 8;
 
 pub const fn idx_masked(ptr: u32) -> u32 {

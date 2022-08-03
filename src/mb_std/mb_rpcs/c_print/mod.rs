@@ -194,24 +194,13 @@ impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER 
         c_str_args.fmt_str = req.args[0];
         c_str_args.file = req.args[1];
         c_str_args.pos = req.args[2];
-        let rest_args_pos = c_str_args.dir_args_len();
-        for (i, d) in c_str_args.args[..rest_args_pos].iter_mut().enumerate() {
+        for (i, d) in c_str_args.args.iter_mut().enumerate() {
             *d = req.args[3 + i];
-        }
-        if c_str_args.rest_args_len() > 0 {
-            r.read_slice(
-                req.args[MB_MAX_ARGS - 1] as *const MBPtrT,
-                &mut c_str_args.args[rest_args_pos..],
-            );
         }
         let parser = MBCStringFmtParser::new(&c_str_args, r).unwrap();
         let s = parser.parse().unwrap();
         print!("[{}] {}", server_name, s);
-        Poll::Ready(if c_str_args.rest_args_len() > 0 {
-            Ok(MBRespEntry::default())
-        } else {
-            Err(MBAsyncRPCError::NoResp)
-        })
+        Poll::Ready(Err(MBAsyncRPCError::NoResp))
     }
 }
 
@@ -250,8 +239,5 @@ pub fn mb_cprint<'a, CH: MBChannelIf>(
             args,
         );
         sender.send_req(&cprint_rpc, &c_str_args).await;
-        if c_str_args.rest_args_len() > 0 {
-            sender.recv_resp(&cprint_rpc).await;
-        }
     }
 }

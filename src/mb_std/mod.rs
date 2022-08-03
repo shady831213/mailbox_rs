@@ -116,13 +116,13 @@ mod tests {
     #[test]
     fn mb_std_share_mem() {
         let space = Arc::new(Mutex::new(MBShareMemSpace::<ShareMem>::new()));
-        let share_mem0 = Arc::new(Mutex::new(ShareMem::new(0, 1024)));
-        let share_mem1 = Arc::new(Mutex::new(ShareMem::new(1024, 1024)));
+        let share_mem0 = Arc::new(Mutex::new(ShareMem::new(0, 2048)));
+        let share_mem1 = Arc::new(Mutex::new(ShareMem::new(2048, 2048)));
         space.lock().unwrap().add_mem(&share_mem0).unwrap();
         space.lock().unwrap().add_mem(&share_mem1).unwrap();
-        assert_eq!(space.lock().unwrap().write(1022, &[1, 2, 3]), 3);
+        assert_eq!(space.lock().unwrap().write(2046, &[1, 2, 3]), 3);
         let mut data: [u8; 3] = [0; 3];
-        assert_eq!(space.lock().unwrap().read(1022, &mut data), 2);
+        assert_eq!(space.lock().unwrap().read(2046, &mut data), 2);
         assert_eq!(data, [1, 2, 0]);
         let channel = Arc::new(Mutex::new(MBAsyncChannel::new(MBChannelShareMem::new(
             0, &space,
@@ -169,7 +169,7 @@ mod tests {
                     let file = "mb_cprint_test\0";
                     let pos = line!();
                     let fmt_str =
-                        "mb_cprint_test \\ %% %d, %x, %f, %s, %d, %d, %d, %d, %d, %#llx!\n\0";
+                        "mb_cprint_test \\ %% %d, %x, %f, %s, %d, %d, %d, %d, %d, %d!\n\0";
                     let s = "my s\0";
                     let args: Vec<MBPtrT> = vec![
                         i as MBPtrT,
@@ -285,7 +285,7 @@ mod tests {
 
     #[test]
     fn mb_memmove_test() {
-        let share_mem = Arc::new(Mutex::new(ShareMem::new(0, 1024)));
+        let share_mem = Arc::new(Mutex::new(ShareMem::new(0, 2048)));
         let channel = Arc::new(Mutex::new(MBAsyncChannel::new(MBChannelShareMem::new(
             0, &share_mem,
         ))));
@@ -321,7 +321,7 @@ mod tests {
 
     #[test]
     fn mb_memset_test() {
-        let share_mem = Arc::new(Mutex::new(ShareMem::new(0, 1024)));
+        let share_mem = Arc::new(Mutex::new(ShareMem::new(0, 2048)));
         let channel = Arc::new(Mutex::new(MBAsyncChannel::new(MBChannelShareMem::new(
             0, &share_mem,
         ))));
@@ -356,7 +356,7 @@ mod tests {
 
     #[test]
     fn mb_memcmp_test() {
-        let share_mem = Arc::new(Mutex::new(ShareMem::new(0, 1024)));
+        let share_mem = Arc::new(Mutex::new(ShareMem::new(0, 2048)));
         let channel = Arc::new(Mutex::new(MBAsyncChannel::new(MBChannelShareMem::new(
             0, &share_mem,
         ))));

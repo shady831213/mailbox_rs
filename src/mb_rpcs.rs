@@ -116,31 +116,16 @@ impl<'a> MBRpc for MBPrint<'a> {
     fn get_resp(&self, _: &MBRespEntry) -> Self::RESP {}
 }
 
-pub const MB_CSTRING_MAX_ARGS: usize = 16;
 #[derive(Default, Debug)]
 #[repr(C)]
 pub struct MBCStringArgs {
-    pub len: u32,                            // -> MBReq.words
-    pub fmt_str: MBPtrT,                     // -> MBReq.args[0]
-    pub file: MBPtrT,                        // -> MBReq.args[1]
-    pub pos: MBPtrT,                         // -> MBReq.args[2]
-    pub args: [MBPtrT; MB_CSTRING_MAX_ARGS], // -> MBReq.args[3..]
+    pub len: u32,                        // -> MBReq.words
+    pub fmt_str: MBPtrT,                 // -> MBReq.args[0]
+    pub file: MBPtrT,                    // -> MBReq.args[1]
+    pub pos: MBPtrT,                     // -> MBReq.args[2]
+    pub args: [MBPtrT; MB_MAX_ARGS - 3], // -> MBReq.args[3..]
 }
 impl MBCStringArgs {
-    pub const fn dir_args_len(&self) -> usize {
-        if self.len as usize > MB_MAX_ARGS {
-            MB_MAX_ARGS - 1 - 3
-        } else {
-            self.len as usize - 3
-        }
-    }
-    pub const fn rest_args_len(&self) -> usize {
-        if self.len as usize > MB_MAX_ARGS {
-            self.len as usize - MB_MAX_ARGS + 1
-        } else {
-            0
-        }
-    }
     pub const fn args_len(&self) -> usize {
         self.len as usize - 3
     }
@@ -166,25 +151,16 @@ impl<'a> MBRpc for MBCPrint<'a> {
         entry.set_args(0, req.fmt_str);
         entry.set_args(1, req.file);
         entry.set_args(2, req.pos);
-        for (i, d) in req.args[..req.dir_args_len()].iter().enumerate() {
+        for (i, d) in req.args.iter().enumerate() {
             entry.set_args(3 + i, *d);
-        }
-        if req.rest_args_len() > 0 {
-            entry.set_args(
-                MB_MAX_ARGS - 1,
-                req.args[req.dir_args_len()..].as_ptr() as MBPtrT,
-            );
         }
         // entry.action = MBAction::CPRINT;
         // entry.words = req.len;
         // entry.args[0] = req.fmt_str;
         // entry.args[1] = req.file;
         // entry.args[2] = req.pos;
-        // for (i, d) in req.args[..req.dir_args_len()].iter().enumerate() {
+        // for (i, d) in req.args.iter().enumerate() {
         //     entry.args[3 + i] = *d
-        // }
-        // if req.rest_args_len() > 0 {
-        //     entry.args[MB_MAX_ARGS - 1] = req.args[req.dir_args_len()..].as_ptr() as MBPtrT;
         // }
     }
     fn get_resp(&self, _: &MBRespEntry) -> Self::RESP {}

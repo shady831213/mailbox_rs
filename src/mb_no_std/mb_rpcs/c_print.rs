@@ -11,11 +11,7 @@ pub fn mb_cprint<SENDER: MBNbSender>(
     let cprint_rpc = MBCPrint::new();
     let c_str_args =
         cprint_rpc.to_cstr_args(file as MBPtrT, pos, fmt_str as MBPtrT, args_len, args);
-    if c_str_args.rest_args_len() > 0 {
-        sender.send(&cprint_rpc, &c_str_args);
-    } else {
-        sender.send_nb(&cprint_rpc, &c_str_args);
-    }
+    sender.send_nb(&cprint_rpc, &c_str_args);
 }
 
 impl<'a> MBCPrint<'a> {
