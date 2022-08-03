@@ -47,14 +47,31 @@ pub trait MBPtrResolver {
         buf_reader.read_exact(&mut buf).map_err(|e| e.to_string())?;
         Ok(String::from_utf8(buf).map_err(|e| e.to_string())?)
     }
+    fn read_until_nul(
+        &self,
+        ptr: *const u8,
+        buf: &mut Vec<u8>,
+        limit: usize,
+    ) -> Result<usize, String> {
+        let mut buf_reader = BufReader::new(self.reader(ptr).take(limit as u64));
+        Ok(buf_reader
+            .read_until(b'\0', buf)
+            .map_err(|e| e.to_string())?)
+    }
     fn read_c_str(&self, ptr: *const u8) -> Result<String, String> {
-        let mut buf_reader = BufReader::new(self.reader(ptr).take(4096));
+        let max_len = 4096;
+        let batch_len = 128;
+        let max_rep = max_len / batch_len;
         let mut buf = vec![];
-        buf_reader
-            .read_until(b'\0', &mut buf)
-            .map_err(|e| e.to_string())?;
-        if buf[buf.len() - 1] == 0 {
-            buf = buf[..buf.len() - 1].to_vec();
+        let mut next = ptr as usize;
+        for _ in 0..max_rep {
+            let len = self.read_until_nul(next as *const u8, &mut buf, batch_len)?;
+            if buf[buf.len() - 1] == 0 {
+                buf.pop();
+                break;
+            } else {
+                next += len
+            }
         }
         let string = String::from_utf8(buf).map_err(|e| e.to_string())?;
         Ok(string)
