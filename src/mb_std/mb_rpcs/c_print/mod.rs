@@ -9,6 +9,8 @@ use async_std::task::Context;
 use async_std::task::Poll;
 use sprintf::{vsprintf, ConversionSpecifier, ConversionType, Printf, PrintfError};
 use std::fmt::{self, Debug, Display, Formatter};
+use std::marker::PhantomData;
+use std::sync::Mutex;
 
 struct CPrintArg<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>> {
     arg: MBPtrT,
@@ -179,6 +181,43 @@ impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER 
     }
 }
 
+pub struct MBCPrint<'a> {
+    buf: Mutex<String>,
+    _marker: PhantomData<&'a u8>,
+}
+impl<'a> MBCPrint<'a> {
+    pub fn new() -> MBCPrint<'a> {
+        MBCPrint {
+            buf: Mutex::new(String::new()),
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<'a> MBRpc for MBCPrint<'a> {
+    type REQ = &'a MBCStringArgs;
+    type RESP = ();
+    fn put_req(&self, req: Self::REQ, entry: &mut MBReqEntry) {
+        entry.set_words(req.len);
+        entry.set_action(MBAction::CPRINT);
+        entry.set_args(0, req.fmt_str);
+        entry.set_args(1, req.file);
+        entry.set_args(2, req.pos);
+        for (i, d) in req.args[..req.args_len()].iter().enumerate() {
+            entry.set_args(3 + i, *d);
+        }
+        // entry.action = MBAction::CPRINT;
+        // entry.words = req.len;
+        // entry.args[0] = req.fmt_str;
+        // entry.args[1] = req.file;
+        // entry.args[2] = req.pos;
+        // for (i, d) in req.args[..req.arg_len()].iter().enumerate() {
+        //     entry.args[3 + i] = *d
+        // }
+    }
+    fn get_resp(&self, _: &MBRespEntry) -> Self::RESP {}
+}
+
 impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>>
     MBAsyncRPC<RA, WA, R> for MBCPrint<'a>
 {
@@ -194,12 +233,20 @@ impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER 
         c_str_args.fmt_str = req.args[0];
         c_str_args.file = req.args[1];
         c_str_args.pos = req.args[2];
-        for (i, d) in c_str_args.args.iter_mut().enumerate() {
+        let args_len = c_str_args.args_len();
+        for (i, d) in c_str_args.args[..args_len].iter_mut().enumerate() {
             *d = req.args[3 + i];
         }
         let parser = MBCStringFmtParser::new(&c_str_args, r).unwrap();
         let s = parser.parse().unwrap();
-        print!("[{}] {}", server_name, s);
+        {
+            let mut buf = self.buf.lock().unwrap();
+            *buf += &s;
+            if buf.ends_with('\n') {
+                print!("[{}] {}", server_name, buf);
+                buf.clear();
+            }
+        }
         Poll::Ready(Err(MBAsyncRPCError::NoResp))
     }
 }
