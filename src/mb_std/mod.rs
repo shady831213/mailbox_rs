@@ -33,8 +33,14 @@ mod tests {
     use std::sync::Arc;
     use std::sync::Mutex;
     #[no_mangle]
-    extern "C" fn __mb_exit(code: MBPtrT) {
-        println!("EXIT {}!", code)
+    extern "C" fn __mb_exit(ch_name: *const std::os::raw::c_char, code: MBPtrT) {
+        println!(
+            "[{}] EXIT {}!",
+            unsafe { std::ffi::CStr::from_ptr(ch_name) }
+                .to_str()
+                .unwrap(),
+            code
+        )
     }
 
     #[test]
