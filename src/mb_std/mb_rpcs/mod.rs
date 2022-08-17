@@ -1,25 +1,25 @@
 mod c_print;
+mod call;
 mod exit;
 mod file_access;
 mod memcmp;
 mod memmove;
 mod memset;
 mod print;
-mod svcall;
 mod stop_server;
 pub use c_print::*;
+pub use call::*;
 pub use exit::*;
 pub use file_access::*;
 pub use memcmp::*;
 pub use memmove::*;
 pub use memset::*;
 pub use print::*;
-pub use svcall::*;
 pub use stop_server::*;
 
 use crate::mb_channel::*;
-use crate::mb_std::mb_ptr_resolver::*;
 use crate::mb_rpcs::MBAction;
+use crate::mb_std::mb_ptr_resolver::*;
 use async_std::prelude::*;
 use async_std::task::Context;
 use async_std::task::Poll;

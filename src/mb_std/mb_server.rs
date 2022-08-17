@@ -18,7 +18,7 @@ struct MBServerInner<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER =
     memmove: MBMemMove<'static>,
     memset: MBMemSet<'static>,
     memcmp: MBMemCmp<'static>,
-    svcall: MBSvCall<'static>,
+    call: MBCall<'static>,
     fs: Arc<Option<MBFs>>,
     other_cmds: Mutex<Vec<Box<dyn CustomAsycRPC<RA, WA, R>>>>,
 }
@@ -34,7 +34,7 @@ impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA
             memmove: MBMemMove::new(),
             memset: MBMemSet::new(),
             memcmp: MBMemCmp::new(),
-            svcall: MBSvCall::new(),
+            call: MBCall::new(),
             fs: fs.clone(),
             other_cmds: Mutex::new(vec![]),
         }
@@ -62,7 +62,7 @@ impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA
             MBAction::MEMMOVE => self.memmove.poll_cmd(server_name, r, &req, cx),
             MBAction::MEMSET => self.memset.poll_cmd(server_name, r, &req, cx),
             MBAction::MEMCMP => self.memcmp.poll_cmd(server_name, r, &req, cx),
-            MBAction::SVCALL => self.svcall.poll_cmd(server_name, r, &req, cx),
+            MBAction::CALL => self.call.poll_cmd(server_name, r, &req, cx),
             MBAction::FILEACCESS => {
                 if let Some(fs) = &*self.fs {
                     fs.poll_cmd(server_name, r, &req, cx)

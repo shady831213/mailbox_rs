@@ -18,7 +18,7 @@ pub enum MBAction {
     MEMMOVE = 4,
     MEMSET = 5,
     MEMCMP = 6,
-    SVCALL = 7,
+    CALL = 7,
     FILEACCESS = 8,
     STOPSERVER = 9,
     OTHER = 0x80000000,
@@ -40,7 +40,7 @@ impl From<u32> for MBAction {
             4 => MBAction::MEMMOVE,
             5 => MBAction::MEMSET,
             6 => MBAction::MEMCMP,
-            7 => MBAction::SVCALL,
+            7 => MBAction::CALL,
             8 => MBAction::FILEACCESS,
             9 => MBAction::STOPSERVER,
             _ => MBAction::OTHER,
@@ -213,41 +213,41 @@ impl<'a> MBRpc for MBMemCmp<'a> {
 }
 
 #[repr(u32)]
-pub enum MBSvCallStatus {
+pub enum MBCallStatus {
     Ready = 0,
     Pending = 1,
 }
 
 #[derive(Default, Debug)]
 #[repr(C)]
-pub struct MBSvCallArgs {
+pub struct MBCallArgs {
     pub len: u32,                        // -> MBReq.words
     pub method: MBPtrT,                  // -> MBReq.args[0]
     pub args: [MBPtrT; MB_MAX_ARGS - 1], // -> MBReq.args[1..]
 }
 
-pub struct MBSvCall<'a> {
+pub struct MBCall<'a> {
     _marker: PhantomData<&'a u8>,
 }
-impl<'a> MBSvCall<'a> {
-    pub fn new() -> MBSvCall<'a> {
-        MBSvCall {
+impl<'a> MBCall<'a> {
+    pub fn new() -> MBCall<'a> {
+        MBCall {
             _marker: PhantomData,
         }
     }
 }
 
-impl<'a> MBRpc for MBSvCall<'a> {
-    type REQ = &'a MBSvCallArgs;
+impl<'a> MBRpc for MBCall<'a> {
+    type REQ = &'a MBCallArgs;
     type RESP = MBPtrT;
     fn put_req(&self, req: Self::REQ, entry: &mut MBReqEntry) {
         entry.set_words(req.len + 1);
-        entry.set_action(MBAction::SVCALL);
+        entry.set_action(MBAction::CALL);
         entry.set_args(0, req.method);
         for (i, d) in req.args[0..req.len as usize].iter().enumerate() {
             entry.set_args(1 + i, *d);
         }
-        // entry.action = MBAction::SVCALL;
+        // entry.action = MBAction::CALL;
         // entry.words = req.len + 1;
         // entry.args[0] = req.method;
         // //can not use memcpy!

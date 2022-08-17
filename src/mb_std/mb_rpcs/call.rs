@@ -9,18 +9,18 @@ use async_std::task::Poll;
 
 #[no_mangle]
 #[linkage = "weak"]
-pub unsafe extern "C" fn __mb_sv_call(
+pub unsafe extern "C" fn __mb_call(
     _ch_name: *const std::os::raw::c_char,
     _method: *const std::os::raw::c_char,
     _arg_len: u32,
     _args: *const MBPtrT,
     _status: &mut u32,
 ) -> MBPtrT {
-    panic!("SVCALL is not implemented!")
+    panic!("CALL is not implemented!")
 }
 
 impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>>
-    MBAsyncRPC<RA, WA, R> for MBSvCall<'a>
+    MBAsyncRPC<RA, WA, R> for MBCall<'a>
 {
     fn poll_cmd(
         &self,
@@ -29,7 +29,7 @@ impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER 
         req: &MBReqEntry,
         _cx: &mut Context,
     ) -> Poll<MBAsyncRPCResult> {
-        let mut args = MBSvCallArgs {
+        let mut args = MBCallArgs {
             len: req.words - 1,
             method: req.args[0],
             args: [0; MB_MAX_ARGS - 1],
@@ -42,7 +42,7 @@ impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER 
         resp.words = 1;
         let mut status: u32 = 0;
         unsafe {
-            let ret = __mb_sv_call(
+            let ret = __mb_call(
                 ch_name.as_ptr(),
                 method_name_c.as_ptr(),
                 args.len,
@@ -50,31 +50,31 @@ impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER 
                 &mut status,
             );
             match status {
-                x if x == MBSvCallStatus::Pending as u32 => Poll::Pending,
-                x if x == MBSvCallStatus::Ready as u32 => {
+                x if x == MBCallStatus::Pending as u32 => Poll::Pending,
+                x if x == MBCallStatus::Ready as u32 => {
                     resp.rets = ret;
                     Poll::Ready(Ok(resp))
                 }
-                _ => panic!("Unkown status {} for SVCALL!", status),
+                _ => panic!("Unkown status {} for CALL!", status),
             }
         }
     }
 }
 
-pub fn mb_svcall<'a, CH: MBChannelIf>(
+pub fn mb_call<'a, CH: MBChannelIf>(
     sender: &'a MBAsyncSender<CH>,
     method: &'a str,
     args: &'a [MBPtrT],
 ) -> impl Future<Output = MBPtrT> + 'a {
-    let svcall_rpc = MBSvCall::new();
+    let call_rpc = MBCall::new();
     async move {
-        let mut svcall_args = MBSvCallArgs {
+        let mut call_args = MBCallArgs {
             len: args.len() as u32,
             method: method.as_ptr() as MBPtrT,
             args: [0; MB_MAX_ARGS - 1],
         };
-        svcall_args.args[..args.len()].copy_from_slice(&args[..args.len()]);
-        sender.send_req(&svcall_rpc, &svcall_args).await;
-        sender.recv_resp(&svcall_rpc).await
+        call_args.args[..args.len()].copy_from_slice(&args[..args.len()]);
+        sender.send_req(&call_rpc, &call_args).await;
+        sender.recv_resp(&call_rpc).await
     }
 }
