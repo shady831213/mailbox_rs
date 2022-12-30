@@ -93,7 +93,23 @@ macro_rules! export_mb_backdoor_dpi {
 
 #[macro_export]
 macro_rules! export_mb_backdoor_py {
+    ($mailbox:ident, $package:ident, $($funcs:ident),+) => {
+        export_mb_backdoor_py!(@common_funcs $mailbox);
+        #[pymodule]
+        fn $package(_py: Python, m: &PyModule) -> PyResult<()> {
+            py_mb_backdoor_add_commom_funcs(m)?;
+            $(m.add_function(crate::pyo3::wrap_pyfunction!($funcs,m)?)?;)+
+            Ok(())
+        }
+    };
     ($mailbox:ident, $package:ident) => {
+        export_mb_backdoor_py!(@common_funcs $mailbox);
+        #[pymodule]
+        fn $package(_py: Python, m: &PyModule) -> PyResult<()> {
+            py_mb_backdoor_add_commom_funcs(m)
+        }
+    };
+    (@common_funcs $mailbox:ident) => {
         use crate::pyo3::prelude::*;
         export_mb_backdoor_py!(@ u8, $mailbox);
         export_mb_backdoor_py!(@ u16, $mailbox);
@@ -135,8 +151,7 @@ macro_rules! export_mb_backdoor_py {
             let m_data = std::ffi::CString::new(data).unwrap();
             space.write(addr as crate::mailbox_rs::mb_rpcs::MBPtrT, m_data.to_bytes_with_nul());
         }
-        #[pymodule]
-        fn $package(_py: Python, m: &PyModule) -> PyResult<()> {
+        fn py_mb_backdoor_add_commom_funcs(m: &PyModule) -> PyResult<()> {
             m.add_function(crate::pyo3::wrap_pyfunction!(py_mb_get_space, m)?)?;
             m.add_function(crate::pyo3::wrap_pyfunction!(py_mb_backdoor_read_string, m)?)?;
             m.add_function(crate::pyo3::wrap_pyfunction!(py_mb_backdoor_write_string, m)?)?;
