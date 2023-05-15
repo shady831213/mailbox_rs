@@ -124,7 +124,6 @@ pub trait MBQueueIf<T> {
 #[derive(Default, Debug, Copy, Clone)]
 #[repr(C)]
 pub struct MBQueue<T> {
-    id: u32,
     idx_p: u32,
     idx_c: u32,
     queue: [T; MB_MAX_ENTRIES],
@@ -188,7 +187,6 @@ impl MBChannel {
             id: 0,
             state: MBState::INIT,
             req_queue: MBQueue::<MBReqEntry> {
-                id: 0,
                 idx_p: 0,
                 idx_c: 0,
                 queue: [MBReqEntry {
@@ -198,7 +196,6 @@ impl MBChannel {
                 }; MB_MAX_ENTRIES],
             },
             resp_queue: MBQueue::<MBRespEntry> {
-                id: 0,
                 idx_p: 0,
                 idx_c: 0,
                 queue: [MBRespEntry { words: 0, rets: 0 }; MB_MAX_ENTRIES],

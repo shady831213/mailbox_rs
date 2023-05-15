@@ -23,7 +23,7 @@ impl<SM: MBShareMem, T: Sized + Default + Debug> MBQueueShareMem<SM, T> {
         }
     }
     fn idx_p_offset() -> MBPtrT {
-        std::mem::size_of::<u32>() as MBPtrT
+        0
     }
 
     fn idx_c_offset() -> MBPtrT {
