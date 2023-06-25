@@ -158,7 +158,12 @@ impl<SM: MBShareMem> MBChannelShareMemSys<SM> {
             .chs
             .iter()
             .map(|ch| {
-                let server = MBSMServer::new(ch.0, &self.fs, self.space_map.get(ch.0).unwrap());
+                let server = MBSMServer::new(
+                    ch.0,
+                    &self.fs,
+                    self.get_space(self.get_ch_space_name(ch.0).unwrap())
+                        .unwrap(),
+                );
                 server_callback(&server);
                 let receiver = MBAsyncReceiver::new(ch.1);
                 async move {
@@ -388,13 +393,13 @@ mod test {
     fn ch_yaml_test() {
         let s = "
             core0:
-                space: core0
-                base: 0x1000
-            core1:
                 space: core1
                 base: 0x1000
-            core2:
+            core1:
                 space: core2
+                base: 0x1000
+            core2:
+                space: core0
                 base: 0x1000
         ";
         let spaces = MBShareMemSpaceBuilder::<MyShareMem, MyParser>::from_str(SM_YAML)
@@ -403,10 +408,11 @@ mod test {
             .unwrap()
             .build_spaces()
             .unwrap();
-        MBChannelShareMemBuilder::<MBShareMemSpace<MyShareMem>>::from_str(s, spaces)
+        let mbs = MBChannelShareMemBuilder::<MBShareMemSpace<MyShareMem>>::from_str(s, spaces)
             .unwrap()
             .cfg_channels()
             .unwrap()
             .build();
+        assert_eq!(mbs.get_ch_space_name("core0").unwrap(), "core1");
     }
 }
