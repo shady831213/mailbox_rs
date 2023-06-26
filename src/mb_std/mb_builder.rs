@@ -135,7 +135,7 @@ impl<SM: MBShareMem> MBChannelShareMemSys<SM> {
     pub fn mailboxes(&self) -> &HashMap<String, Arc<Mutex<MBAsyncChannel<MBChannelShareMem<SM>>>>> {
         &self.chs
     }
-    pub fn wake<F: Fn() + 'static>(&self, tick: F) -> impl Future<Output = ()> + '_ {
+    pub fn wake<F: Fn() -> bool + 'static>(&self, tick: F) -> impl Future<Output = ()> + '_ {
         async move {
             loop {
                 let wakers = self
@@ -145,7 +145,9 @@ impl<SM: MBShareMem> MBChannelShareMemSys<SM> {
                     .collect::<Vec<_>>();
                 join_all(wakers).await;
                 async_std::task::yield_now().await;
-                tick();
+                if tick() {
+                    break;
+                }
             }
         }
     }
@@ -153,9 +155,8 @@ impl<SM: MBShareMem> MBChannelShareMemSys<SM> {
     pub fn serve<F: Fn(&MBSMServer<SM>)>(
         &self,
         server_callback: F,
-    ) -> impl Future<Output = Vec<()>> + '_ {
-        let futures = self
-            .chs
+    ) -> Vec<impl Future<Output = ()> + '_ + std::marker::Unpin> {
+        self.chs
             .iter()
             .map(|ch| {
                 let server = MBSMServer::new(
@@ -166,7 +167,7 @@ impl<SM: MBShareMem> MBChannelShareMemSys<SM> {
                 );
                 server_callback(&server);
                 let receiver = MBAsyncReceiver::new(ch.1);
-                async move {
+                Box::pin(async move {
                     loop {
                         let req = receiver.recv_req(ch.0).await;
                         match server.do_cmd(&req).await {
@@ -178,12 +179,12 @@ impl<SM: MBShareMem> MBChannelShareMemSys<SM> {
                             _ => {}
                         }
                     }
-                }
+                })
             })
-            .collect::<Vec<_>>();
-        join_all(futures)
+            .collect::<Vec<_>>()
     }
 }
+
 pub struct MBChannelShareMemBuilder<SM: MBShareMem> {
     docs: Vec<Yaml>,
     sys: MBChannelShareMemSys<SM>,
