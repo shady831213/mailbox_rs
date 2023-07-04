@@ -51,7 +51,10 @@ impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER 
             len: req.args[0] as u32,
             ptr: req.args[1],
         };
-        let s = r.read_str(&str_args).unwrap();
+        let s = r.read_str(&str_args).expect(&format!(
+            "[{}](server), string @{:#x}:",
+            server_name, req.args[1]
+        ));
         {
             let mut buf = self.buf.lock().unwrap();
             *buf += &s;

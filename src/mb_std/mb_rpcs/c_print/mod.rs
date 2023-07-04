@@ -44,7 +44,7 @@ impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER 
                 }
             }
             // char format
-            ConversionType::Char => self.arg.format(spec),
+            ConversionType::Char => (self.arg as u8 as char).format(spec),
             // string format
             ConversionType::String => {
                 let c_str = self
