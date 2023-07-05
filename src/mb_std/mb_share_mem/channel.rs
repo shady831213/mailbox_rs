@@ -162,7 +162,9 @@ impl<SM: MBShareMem> MBChannelShareMem<SM> {
         let mut mb_address: MBPtrT = 0;
         let f = |elf: &ElfFile, _: &str| -> Result<(), String> {
             if let Some(s) = elf.find_section_by_name(".mailbox") {
-                let address = s.address() + (std::mem::size_of::<MBChannel>() * mb_id) as u64;
+                let address = s.address()
+                    + (std::mem::size_of::<MBChannel>().next_multiple_of(MB_ALIGNMENT) * mb_id)
+                        as u64;
                 let sec_end = s.address() + s.size();
                 if address + std::mem::size_of::<MBChannel>() as u64 > sec_end {
                     return Err(format!(
@@ -239,21 +241,27 @@ impl<SM: MBShareMem> MBChannelIf for MBChannelShareMem<SM> {
     fn put_req<REQ: Copy, M: MBRpc<REQ = REQ>>(&mut self, master: &M, req: REQ) {
         master.put_req(req, self.req_queue.cur_p_entry_mut());
         self.req_queue.flush_p_entry();
-        self.req_queue.advance_p();
     }
     fn get_req(&mut self) -> MBReqEntry {
-        let entry = *self.req_queue.cur_c_entry();
-        self.req_queue.advance_c();
-        entry
+        *self.req_queue.cur_c_entry()
     }
     fn get_resp<RESP, M: MBRpc<RESP = RESP>>(&mut self, master: &M) -> RESP {
-        let ret = master.get_resp(self.resp_queue.cur_c_entry());
-        self.resp_queue.advance_c();
-        ret
+        master.get_resp(self.resp_queue.cur_c_entry())
     }
     fn put_resp(&mut self, resp: MBRespEntry) {
         *self.resp_queue.cur_p_entry_mut() = resp;
         self.resp_queue.flush_p_entry();
+    }
+    fn commit_req(&mut self) {
+        self.req_queue.advance_p();
+    }
+    fn ack_req(&mut self) {
+        self.req_queue.advance_c();
+    }
+    fn ack_resp(&mut self) {
+        self.resp_queue.advance_c();
+    }
+    fn commit_resp(&mut self) {
         self.resp_queue.advance_p();
     }
 }

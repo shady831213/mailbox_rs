@@ -51,6 +51,7 @@ impl<CH: MBChannelIf> MBAsyncSender<CH> {
             return Poll::Pending;
         }
         ch.channel.put_req(rpc, req);
+        ch.channel.commit_req();
         if let Some(w) = ch.s_waker.take() {
             w.wake();
         }
@@ -73,6 +74,7 @@ impl<CH: MBChannelIf> MBAsyncSender<CH> {
             return Poll::Pending;
         }
         let ret = ch.channel.get_resp(rpc);
+        ch.channel.ack_resp();
         if let Some(w) = ch.s_waker.take() {
             w.wake();
         }
@@ -174,6 +176,7 @@ impl<CH: MBChannelIf> MBAsyncReceiver<CH> {
             return Poll::Pending;
         }
         let req = ch.channel.get_req();
+        ch.channel.ack_req();
         if let Some(w) = ch.c_waker.take() {
             w.wake();
         }
@@ -193,6 +196,7 @@ impl<CH: MBChannelIf> MBAsyncReceiver<CH> {
             return Poll::Pending;
         }
         ch.channel.put_resp(resp);
+        ch.channel.commit_resp();
         if let Some(w) = ch.c_waker.take() {
             w.wake();
         }

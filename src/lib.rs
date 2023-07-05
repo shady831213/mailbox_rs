@@ -1,6 +1,7 @@
 #![cfg_attr(feature = "no_std", feature(const_mut_refs))]
-#![cfg_attr(feature = "std", feature(linkage))]
+#![feature(linkage)]
 #![cfg_attr(feature = "no_std", no_std)]
+#![cfg_attr(feature = "std", feature(int_roundings))]
 pub mod mb_channel;
 pub mod mb_rpcs;
 #[cfg(feature = "std")]

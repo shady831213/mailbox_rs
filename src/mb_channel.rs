@@ -15,6 +15,7 @@ impl Default for MBState {
 
 pub const MB_MAX_ARGS: usize = 20;
 pub const MB_MAX_ENTRIES: usize = 8;
+pub const MB_ALIGNMENT: usize = 256;
 
 pub const fn idx_masked(ptr: u32) -> u32 {
     ptr & ((1 << (MB_MAX_ENTRIES.trailing_zeros() as u32)) - 1)
@@ -171,9 +172,13 @@ pub trait MBChannelIf {
     fn get_req(&mut self) -> MBReqEntry;
     fn get_resp<RESP, M: MBRpc<RESP = RESP>>(&mut self, master: &M) -> RESP;
     fn put_resp(&mut self, resp: MBRespEntry);
+    fn commit_req(&mut self);
+    fn ack_req(&mut self);
+    fn ack_resp(&mut self);
+    fn commit_resp(&mut self);
 }
 #[derive(Default, Debug, Copy, Clone)]
-#[repr(C)]
+#[repr(C, align(256))]
 pub struct MBChannel {
     id: u32,
     state: MBState,
@@ -238,20 +243,26 @@ impl MBChannelIf for MBChannel {
     }
     fn put_req<REQ: Copy, M: MBRpc<REQ = REQ>>(&mut self, master: &M, req: REQ) {
         master.put_req(req, self.req_queue.cur_p_entry_mut());
-        self.req_queue.advance_p();
     }
     fn get_req(&mut self) -> MBReqEntry {
-        let entry = *self.req_queue.cur_c_entry();
-        self.req_queue.advance_c();
-        entry
+        *self.req_queue.cur_c_entry()
     }
     fn get_resp<RESP, M: MBRpc<RESP = RESP>>(&mut self, master: &M) -> RESP {
-        let ret = master.get_resp(self.resp_queue.cur_c_entry());
-        self.resp_queue.advance_c();
-        ret
+        master.get_resp(self.resp_queue.cur_c_entry())
     }
     fn put_resp(&mut self, resp: MBRespEntry) {
         *self.resp_queue.cur_p_entry_mut() = resp;
+    }
+    fn commit_req(&mut self) {
+        self.req_queue.advance_p();
+    }
+    fn ack_req(&mut self) {
+        self.req_queue.advance_c();
+    }
+    fn ack_resp(&mut self) {
+        self.resp_queue.advance_c();
+    }
+    fn commit_resp(&mut self) {
         self.resp_queue.advance_p();
     }
 }
