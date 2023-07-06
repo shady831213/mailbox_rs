@@ -16,11 +16,11 @@ extern "C" fn __mb_restore_flag(_flag: MBPtrT) {}
 
 #[linkage = "weak"]
 #[no_mangle]
-extern "C" fn __mb_rfence(_start: usize, _size: usize) {}
+extern "C" fn __mb_rfence(_start: MBPtrT, _size: usize) {}
 
 #[linkage = "weak"]
 #[no_mangle]
-extern "C" fn __mb_wfence(_start: usize, _size: usize) {}
+extern "C" fn __mb_wfence(_start: MBPtrT, _size: usize) {}
 
 #[derive(Debug)]
 pub enum MBNbSenderErr {
@@ -49,17 +49,17 @@ impl<CH: 'static + MBChannelIf> MBNbLockRefSender<CH> {
         req: REQ,
         ch: &mut CH,
     ) -> nb::Result<(), ()> {
-        __mb_rfence(ch as *mut _ as usize, core::mem::size_of::<CH>());
+        __mb_rfence(ch as *mut _ as MBPtrT, core::mem::size_of::<CH>());
         if !ch.is_ready() {
             return Err(nb::Error::WouldBlock);
         }
         if !ch.req_can_put() {
             return Err(nb::Error::WouldBlock);
         }
-        ch.put_req(rpc, req);
-        __mb_wfence(ch as *mut _ as usize, core::mem::size_of::<CH>());
-        ch.commit_req();
-        __mb_wfence(ch as *mut _ as usize, core::mem::size_of::<CH>());
+        let entry = ch.put_req(rpc, req);
+        __mb_wfence(entry, core::mem::size_of::<MBReqEntry>());
+        let ptr_ptr = ch.commit_req();
+        __mb_wfence(ptr_ptr, core::mem::size_of::<u32>());
         Ok(())
     }
     fn try_recv<RESP, RPC: MBRpc<RESP = RESP>>(
@@ -67,7 +67,7 @@ impl<CH: 'static + MBChannelIf> MBNbLockRefSender<CH> {
         rpc: &RPC,
         ch: &mut CH,
     ) -> nb::Result<RESP, MBNbSenderErr> {
-        __mb_rfence(ch as *mut _ as usize, core::mem::size_of::<CH>());
+        __mb_rfence(ch as *mut _ as MBPtrT, core::mem::size_of::<CH>());
         if !ch.is_ready() {
             return Err(nb::Error::Other(MBNbSenderErr::NotReady));
         }
@@ -75,8 +75,8 @@ impl<CH: 'static + MBChannelIf> MBNbLockRefSender<CH> {
             return Err(nb::Error::WouldBlock);
         }
         let ret = ch.get_resp(rpc);
-        ch.ack_resp();
-        __mb_wfence(ch as *mut _ as usize, core::mem::size_of::<CH>());
+        let ptr_ptr = ch.ack_resp();
+        __mb_wfence(ptr_ptr, core::mem::size_of::<u32>());
         Ok(ret)
     }
 }
@@ -103,7 +103,7 @@ impl<CH: 'static + MBChannelIf> MBNbSender for MBNbLockRefSender<CH> {
     fn reset(&mut self) {
         let mut ch = self.0.lock();
         ch.reset_req();
-        __mb_wfence(&mut ch as *mut _ as usize, core::mem::size_of::<CH>());
+        __mb_wfence(&mut ch as *mut _ as MBPtrT, core::mem::size_of::<CH>());
     }
 }
 
@@ -118,24 +118,24 @@ impl<CH: 'static + MBChannelIf> MBNbRefSender<CH> {
         rpc: &RPC,
         req: REQ,
     ) -> nb::Result<(), ()> {
-        __mb_rfence(&self.0 as *const _ as usize, core::mem::size_of::<CH>());
+        __mb_rfence(&self.0 as *const _ as MBPtrT, core::mem::size_of::<CH>());
         if !self.0.is_ready() {
             return Err(nb::Error::WouldBlock);
         }
         if !self.0.req_can_put() {
             return Err(nb::Error::WouldBlock);
         }
-        self.0.put_req(rpc, req);
-        __mb_wfence(&self.0 as *const _ as usize, core::mem::size_of::<CH>());
-        self.0.commit_req();
-        __mb_wfence(&self.0 as *const _ as usize, core::mem::size_of::<CH>());
+        let enrty = self.0.put_req(rpc, req);
+        __mb_wfence(enrty, core::mem::size_of::<MBReqEntry>());
+        let ptr_ptr = self.0.commit_req();
+        __mb_wfence(ptr_ptr, core::mem::size_of::<u32>());
         Ok(())
     }
     fn try_recv<RESP, RPC: MBRpc<RESP = RESP>>(
         &mut self,
         rpc: &RPC,
     ) -> nb::Result<RESP, MBNbSenderErr> {
-        __mb_rfence(&self.0 as *const _ as usize, core::mem::size_of::<CH>());
+        __mb_rfence(&self.0 as *const _ as MBPtrT, core::mem::size_of::<CH>());
         if !self.0.is_ready() {
             return Err(nb::Error::Other(MBNbSenderErr::NotReady));
         }
@@ -143,8 +143,8 @@ impl<CH: 'static + MBChannelIf> MBNbRefSender<CH> {
             return Err(nb::Error::WouldBlock);
         }
         let ret = self.0.get_resp(rpc);
-        self.0.ack_resp();
-        __mb_wfence(&self.0 as *const _ as usize, core::mem::size_of::<CH>());
+        let ptr_ptr = self.0.ack_resp();
+        __mb_wfence(ptr_ptr, core::mem::size_of::<u32>());
         Ok(ret)
     }
 }
@@ -168,6 +168,6 @@ impl<CH: 'static + MBChannelIf> MBNbSender for MBNbRefSender<CH> {
     }
     fn reset(&mut self) {
         self.0.reset_req();
-        __mb_wfence(&self.0 as *const _ as usize, core::mem::size_of::<CH>());
+        __mb_wfence(&self.0 as *const _ as MBPtrT, core::mem::size_of::<CH>());
     }
 }

@@ -6,6 +6,7 @@ use crate::mb_std::utils::*;
 use xmas_elf::program;
 use xmas_elf::ElfFile;
 
+#[derive(Debug)]
 pub struct MBShareMemSpace<M: MBShareMemBlock> {
     mems: Vec<Arc<Mutex<M>>>,
 }

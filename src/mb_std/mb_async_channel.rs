@@ -16,7 +16,7 @@ enum MBAsyncChannelErr {
 }
 
 type MBAsyncChannelResult<T> = Result<T, MBAsyncChannelErr>;
-
+#[derive(Debug)]
 pub struct MBAsyncChannel<CH: MBChannelIf> {
     channel: CH,
     c_waker: Option<Waker>,

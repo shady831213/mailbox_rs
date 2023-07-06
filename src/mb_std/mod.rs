@@ -76,6 +76,7 @@ mod tests {
     }
 
     use super::mb_share_mem::*;
+    #[derive(Debug)]
     struct ShareMem {
         base: usize,
         mem: Vec<u8>,
@@ -291,7 +292,7 @@ mod tests {
 
     #[test]
     fn mb_memmove_test() {
-        let share_mem = Arc::new(Mutex::new(ShareMem::new(0, 2048)));
+        let share_mem = Arc::new(Mutex::new(ShareMem::new(0, 4096)));
         let channel = Arc::new(Mutex::new(MBAsyncChannel::new(MBChannelShareMem::new(
             0, &share_mem,
         ))));
@@ -327,7 +328,7 @@ mod tests {
 
     #[test]
     fn mb_memset_test() {
-        let share_mem = Arc::new(Mutex::new(ShareMem::new(0, 2048)));
+        let share_mem = Arc::new(Mutex::new(ShareMem::new(0, 4096)));
         let channel = Arc::new(Mutex::new(MBAsyncChannel::new(MBChannelShareMem::new(
             0, &share_mem,
         ))));
@@ -362,7 +363,7 @@ mod tests {
 
     #[test]
     fn mb_memcmp_test() {
-        let share_mem = Arc::new(Mutex::new(ShareMem::new(0, 2048)));
+        let share_mem = Arc::new(Mutex::new(ShareMem::new(0, 4096)));
         let channel = Arc::new(Mutex::new(MBAsyncChannel::new(MBChannelShareMem::new(
             0, &share_mem,
         ))));
