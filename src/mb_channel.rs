@@ -32,8 +32,9 @@ macro_rules! with_cache_line(
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 #[repr(u32)]
 pub enum MBState {
-    INIT = 0,
-    READY = 1,
+    OTHER = 0,
+    INIT = 1,
+    READY = 2,
 }
 
 impl Default for MBState {
@@ -309,6 +310,7 @@ impl MBChannelIf for MBChannel {
     }
     fn reset_ready(&self) -> bool {
         io_read32!(&self.version.0) != 0
+            && io_read32!(&self.state as *const MBState) == MBState::INIT as u32
             && io_read32!(&self.req_queue.idx_p) == 0
             && io_read32!(&self.req_queue.idx_c.0) == 0
             && io_read32!(&self.resp_queue.idx_p) == 0

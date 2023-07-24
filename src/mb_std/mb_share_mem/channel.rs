@@ -219,6 +219,14 @@ impl<SM: MBShareMem> MBChannelShareMem<SM> {
     fn state_offset(&self) -> MBPtrT {
         std::mem::size_of::<u32>() as MBPtrT
     }
+    fn state(&self) -> MBState {
+        let mut state: MBState = MBState::OTHER;
+        self.mem
+            .lock()
+            .unwrap()
+            .read_sized(self.base + self.state_offset(), &mut state);
+        state
+    }
 }
 
 impl<SM: MBShareMem> MBChannelIf for MBChannelShareMem<SM> {
@@ -228,12 +236,7 @@ impl<SM: MBShareMem> MBChannelIf for MBChannelShareMem<SM> {
         version
     }
     fn is_ready(&self) -> bool {
-        let mut state: MBState = MBState::INIT;
-        self.mem
-            .lock()
-            .unwrap()
-            .read_sized(self.base + self.state_offset(), &mut state);
-        state == MBState::READY
+        self.state() == MBState::READY
     }
     fn reset_req(&mut self) {
         let version = MB_VERSION;
@@ -250,6 +253,7 @@ impl<SM: MBShareMem> MBChannelIf for MBChannelShareMem<SM> {
     }
     fn reset_ready(&self) -> bool {
         self.version() != MBVersion::from_u32(0)
+            && self.state() == MBState::INIT
             && self.req_queue.idx_p() == 0
             && self.req_queue.idx_c() == 0
             && self.resp_queue.idx_p() == 0
