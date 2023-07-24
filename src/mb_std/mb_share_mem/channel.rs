@@ -149,7 +149,7 @@ impl<SM: MBShareMem> MBChannelShareMem<SM> {
     pub fn new(base: MBPtrT, mem: &Arc<Mutex<SM>>) -> MBChannelShareMem<SM> {
         let req_queue = MBQueueShareMem::<SM, MBReqEntry>::new(
             base + MB_CACHE_LINE.map_or(
-                std::mem::size_of::<u32>() + std::mem::size_of::<MBState>(),
+                std::mem::size_of::<MBVersion>() + std::mem::size_of::<MBState>(),
                 |cache_line| {
                     (std::mem::size_of::<u32>() + std::mem::size_of::<MBState>())
                         .next_multiple_of(cache_line)
@@ -222,6 +222,11 @@ impl<SM: MBShareMem> MBChannelShareMem<SM> {
 }
 
 impl<SM: MBShareMem> MBChannelIf for MBChannelShareMem<SM> {
+    fn version(&self) -> MBVersion {
+        let mut version = MBVersion::from_u32(0);
+        self.mem.lock().unwrap().read_sized(self.base, &mut version);
+        version
+    }
     fn is_ready(&self) -> bool {
         let mut state: MBState = MBState::INIT;
         self.mem
@@ -231,6 +236,8 @@ impl<SM: MBShareMem> MBChannelIf for MBChannelShareMem<SM> {
         state == MBState::READY
     }
     fn reset_req(&mut self) {
+        let version = MBVersion::new();
+        self.mem.lock().unwrap().write_sized(self.base, &version);
         let state = MBState::INIT;
         self.mem
             .lock()
@@ -242,7 +249,8 @@ impl<SM: MBShareMem> MBChannelIf for MBChannelShareMem<SM> {
         self.resp_queue.clr_c();
     }
     fn reset_ready(&self) -> bool {
-        self.req_queue.idx_p() == 0
+        self.version() != MBVersion::from_u32(0)
+            && self.req_queue.idx_p() == 0
             && self.req_queue.idx_c() == 0
             && self.resp_queue.idx_p() == 0
             && self.resp_queue.idx_c() == 0

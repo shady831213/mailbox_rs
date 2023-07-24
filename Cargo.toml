@@ -1,6 +1,6 @@
 [package]
 name = "mailbox_rs"
-version = "0.1.0"
+version = "0.2.0"
 rust-version = "1.60"
 authors = ["yang.li <yang.li@picocom.com>"]
 edition = "2021"
@@ -16,6 +16,7 @@ xmas-elf = { version = "0.9", optional = true }
 shellexpand = { version = "3.1", optional = true }
 yaml-rust = { version = "0.4", optional = true }
 paste =  { version = "1", optional = true }
+konst = "0.3"
 
 [features]
 std = ["async-std", "futures", "xmas-elf", "shellexpand", "yaml-rust", "paste"]

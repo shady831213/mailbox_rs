@@ -212,6 +212,7 @@ impl<T> MBQueueIf<T> for MBQueue<T> {
 }
 
 pub trait MBChannelIf {
+    fn version(&self) -> MBVersion;
     fn reset_req(&mut self);
     fn reset_ack(&mut self);
     fn reset_ready(&self) -> bool;
@@ -230,11 +231,35 @@ pub trait MBChannelIf {
     fn commit_resp(&mut self) -> MBPtrT;
 }
 
+#[derive(Default, Debug, PartialEq, Eq, Copy, Clone)]
+#[repr(C)]
+pub struct MBVersion(u32);
+impl MBVersion {
+    pub const fn new() -> MBVersion {
+        use konst::{primitive::parse_usize, result::unwrap_ctx};
+        let major = unwrap_ctx!(parse_usize(core::env!("CARGO_PKG_VERSION_MAJOR"))) as u16 as u32;
+        let minor = unwrap_ctx!(parse_usize(core::env!("CARGO_PKG_VERSION_MINOR"))) as u16 as u32;
+        MBVersion((major << 16) | minor)
+    }
+
+    pub fn from_u32(v: u32) -> MBVersion {
+        MBVersion(v)
+    }
+
+    pub fn major(&self) -> usize {
+        (self.0 >> 16) as usize
+    }
+
+    pub fn minor(&self) -> usize {
+        self.0 as u16 as usize
+    }
+}
+
 with_cache_line!(
     #[derive(Default, Debug, Copy, Clone)]
     #[repr(C)]
     pub struct MBChannel {
-        id: u32,
+        version: MBVersion,
         state: MBState,
         req_queue: MBQueue<MBReqEntry>,
         resp_queue: MBQueue<MBRespEntry>,
@@ -243,7 +268,7 @@ with_cache_line!(
 impl MBChannel {
     pub const fn const_init() -> MBChannel {
         MBChannel {
-            id: 0,
+            version: MBVersion::new(),
             state: MBState::INIT,
             req_queue: MBQueue::<MBReqEntry> {
                 _reserverd: 0,
@@ -266,10 +291,14 @@ impl MBChannel {
 }
 
 impl MBChannelIf for MBChannel {
+    fn version(&self) -> MBVersion {
+        self.version
+    }
     fn is_ready(&self) -> bool {
         io_read32!(&self.state as *const MBState) == MBState::READY as u32
     }
     fn reset_req(&mut self) {
+        io_write32!(&mut self.version.0, MBVersion::new().0);
         io_write32!(&mut self.state as *mut MBState, MBState::INIT);
         io_write32!(&mut self.req_queue.idx_p, 0);
         io_write32!(&mut self.req_queue.idx_c.0, 0);
@@ -277,7 +306,8 @@ impl MBChannelIf for MBChannel {
         io_write32!(&mut self.resp_queue.idx_c.0, 0);
     }
     fn reset_ready(&self) -> bool {
-        io_read32!(&self.req_queue.idx_p) == 0
+        io_read32!(&self.version.0) != 0
+            && io_read32!(&self.req_queue.idx_p) == 0
             && io_read32!(&self.req_queue.idx_c.0) == 0
             && io_read32!(&self.resp_queue.idx_p) == 0
             && io_read32!(&self.resp_queue.idx_c.0) == 0

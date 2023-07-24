@@ -170,6 +170,7 @@ impl<SM: MBShareMem> MBChannelShareMemSys<SM> {
                 Box::pin(async move {
                     receiver.reset().await;
                     println!("[{}(server)] started!", ch.0);
+                    receiver.check_version(ch.0);
                     loop {
                         let req = receiver.recv_req(ch.0).await;
                         match server.do_cmd(&req).await {

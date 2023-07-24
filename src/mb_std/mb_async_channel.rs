@@ -216,6 +216,21 @@ impl<CH: MBChannelIf> MBAsyncReceiver<CH> {
         Poll::Ready(())
     }
 
+    pub fn check_version(&self, server_tag: &str) {
+        let cur_version = MBVersion::new();
+        let client_version = self.0.lock().unwrap().channel.version();
+        if cur_version != client_version {
+            panic!(
+                "[{}(server)] versions mismatched! expect client version {}.{}.x, but get {}.{}.x!",
+                server_tag,
+                cur_version.major(),
+                cur_version.minor(),
+                client_version.major(),
+                client_version.minor(),
+            )
+        }
+    }
+
     pub fn reset<'a>(&'a self) -> impl Future<Output = ()> + 'a {
         let fut = MBAsyncReceiverReset { receiver: self };
         fut
