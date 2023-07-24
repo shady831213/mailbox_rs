@@ -51,6 +51,7 @@ mod tests {
         let receiver = MBAsyncReceiver::new(&channel);
         async_std::task::block_on(async {
             let c = async_std::task::spawn(async move {
+                sender.reset().await;
                 for i in 0..20 {
                     mb_exit(&sender, i as u32).await;
                     let msg = format!("abc {}!\n", i);
@@ -139,6 +140,7 @@ mod tests {
         let receiver = MBAsyncReceiver::new(&channel);
         async_std::task::block_on(async {
             let c = async_std::task::spawn(async move {
+                sender.reset().await;
                 for i in 0..20 {
                     mb_exit(&sender, i as u32).await;
                     println!("send req");
@@ -172,6 +174,7 @@ mod tests {
         let receiver = MBAsyncReceiver::new(&channel);
         async_std::task::block_on(async {
             let c = async_std::task::spawn(async move {
+                sender.reset().await;
                 for i in 0..20 {
                     let file = "mb_cprint_test\0";
                     let pos = line!();
@@ -269,6 +272,7 @@ mod tests {
         let receiver = MBAsyncReceiver::new(&channel);
         async_std::task::block_on(async {
             let c = async_std::task::spawn(async move {
+                sender.reset().await;
                 for i in 0..20 {
                     println!("mb_custom:{}", mb_custom(&sender, i as u32).await);
                 }
@@ -301,6 +305,7 @@ mod tests {
         let receiver = MBAsyncReceiver::new(&channel);
         async_std::task::block_on(async {
             let c = async_std::task::spawn(async move {
+                sender.reset().await;
                 let mut buffer: [u8; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
                 let dest = buffer.as_mut_ptr() as MBPtrT + 2;
                 let src = buffer.as_ptr() as MBPtrT + 4;
@@ -337,6 +342,7 @@ mod tests {
         let receiver = MBAsyncReceiver::new(&channel);
         async_std::task::block_on(async {
             let c = async_std::task::spawn(async move {
+                sender.reset().await;
                 let mut buffer: [u8; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
                 let dest = buffer.as_mut_ptr() as MBPtrT + 2;
                 mb_memset(&sender, dest, 0x5a, 4).await;
@@ -372,6 +378,7 @@ mod tests {
         let receiver = MBAsyncReceiver::new(&channel);
         async_std::task::block_on(async {
             let c = async_std::task::spawn(async move {
+                sender.reset().await;
                 let buffer1: [u8; 8] = [8, 7, 6, 4, 5, 1, 2, 3];
                 let buffer2: [u8; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
                 let s1 = buffer1.as_ptr() as MBPtrT + 3;

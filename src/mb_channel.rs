@@ -242,7 +242,7 @@ impl MBVersion {
         MBVersion((major << 16) | minor)
     }
 
-    pub fn from_u32(v: u32) -> MBVersion {
+    pub const fn from_u32(v: u32) -> MBVersion {
         MBVersion(v)
     }
 
@@ -254,6 +254,8 @@ impl MBVersion {
         self.0 as u16 as usize
     }
 }
+
+pub(crate) const MB_VERSION: MBVersion = MBVersion::new();
 
 with_cache_line!(
     #[derive(Default, Debug, Copy, Clone)]
@@ -268,7 +270,7 @@ with_cache_line!(
 impl MBChannel {
     pub const fn const_init() -> MBChannel {
         MBChannel {
-            version: MBVersion::new(),
+            version: MBVersion::from_u32(0),
             state: MBState::INIT,
             req_queue: MBQueue::<MBReqEntry> {
                 _reserverd: 0,
@@ -298,7 +300,7 @@ impl MBChannelIf for MBChannel {
         io_read32!(&self.state as *const MBState) == MBState::READY as u32
     }
     fn reset_req(&mut self) {
-        io_write32!(&mut self.version.0, MBVersion::new().0);
+        io_write32!(&mut self.version.0, MB_VERSION.0);
         io_write32!(&mut self.state as *mut MBState, MBState::INIT);
         io_write32!(&mut self.req_queue.idx_p, 0);
         io_write32!(&mut self.req_queue.idx_c.0, 0);

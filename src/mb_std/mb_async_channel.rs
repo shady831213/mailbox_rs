@@ -82,7 +82,11 @@ impl<CH: MBChannelIf> MBAsyncSender<CH> {
     }
 
     fn reset_req(&self) {
-        self.0.lock().unwrap().channel.reset_req();
+        let mut ch = self.0.lock().unwrap();
+        ch.channel.reset_req();
+        if let Some(w) = ch.s_waker.take() {
+            w.wake();
+        }
     }
 
     pub fn reset<'a>(&'a self) -> impl Future<Output = ()> + 'a {
@@ -103,10 +107,9 @@ impl<CH: MBChannelIf> MBAsyncSender<CH> {
             data: req,
         };
         async {
-            match req_fut.await {
-                Err(MBAsyncChannelErr::NotReady) => self.reset().await,
-                _ => async_std::task::yield_now().await,
-            }
+            let req = req_fut.await.expect("Unexpected reset!");
+            async_std::task::yield_now().await;
+            req
         }
     }
     pub fn recv_resp<'a, RESP: 'a, RPC: 'a + MBRpc<RESP = RESP>>(
@@ -217,14 +220,13 @@ impl<CH: MBChannelIf> MBAsyncReceiver<CH> {
     }
 
     pub fn check_version(&self, server_tag: &str) {
-        let cur_version = MBVersion::new();
         let client_version = self.0.lock().unwrap().channel.version();
-        if cur_version != client_version {
+        if MB_VERSION != client_version {
             panic!(
                 "[{}(server)] versions mismatched! expect client version {}.{}.x, but get {}.{}.x!",
                 server_tag,
-                cur_version.major(),
-                cur_version.minor(),
+                MB_VERSION.major(),
+                MB_VERSION.minor(),
                 client_version.major(),
                 client_version.minor(),
             )

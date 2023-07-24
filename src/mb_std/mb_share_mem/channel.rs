@@ -236,13 +236,13 @@ impl<SM: MBShareMem> MBChannelIf for MBChannelShareMem<SM> {
         state == MBState::READY
     }
     fn reset_req(&mut self) {
-        let version = MBVersion::new();
-        self.mem.lock().unwrap().write_sized(self.base, &version);
+        let version = MB_VERSION;
         let state = MBState::INIT;
-        self.mem
-            .lock()
-            .unwrap()
-            .write_sized(self.base + self.state_offset(), &state);
+        {
+            let mut mem = self.mem.lock().unwrap();
+            mem.write_sized(self.base, &version);
+            mem.write_sized(self.base + self.state_offset(), &state);
+        }
         self.req_queue.clr_p();
         self.req_queue.clr_c();
         self.resp_queue.clr_p();
