@@ -155,7 +155,7 @@ impl<SM: MBShareMem> MBChannelShareMemSys<SM> {
     pub fn serve<F: Fn(&MBSMServer<SM>)>(
         &self,
         server_callback: F,
-    ) -> Vec<impl Future<Output = ()> + '_ + std::marker::Unpin> {
+    ) -> Vec<impl Future<Output = (String, u32)> + '_ + std::marker::Unpin> {
         self.chs
             .iter()
             .map(|ch| {
@@ -175,7 +175,9 @@ impl<SM: MBShareMem> MBChannelShareMemSys<SM> {
                         let req = receiver.recv_req(ch.0).await;
                         match server.do_cmd(&req).await {
                             Ok(r) => receiver.send_resp(r, ch.0).await,
-                            Err(MBAsyncRPCError::Stop) => break,
+                            Err(MBAsyncRPCError::Stop(server_name, code)) => {
+                                break (server_name, code)
+                            }
                             Err(MBAsyncRPCError::Illegal(action)) => {
                                 panic!("[{}(server)] Illegal cmd {:?}", ch.0, action)
                             }

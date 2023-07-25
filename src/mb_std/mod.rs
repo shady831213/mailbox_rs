@@ -32,16 +32,6 @@ mod tests {
     use async_std::task::Poll;
     use std::sync::Arc;
     use std::sync::Mutex;
-    #[no_mangle]
-    extern "C" fn __mb_exit(ch_name: *const std::os::raw::c_char, code: MBPtrT) {
-        println!(
-            "[{}] EXIT {}!",
-            unsafe { std::ffi::CStr::from_ptr(ch_name) }
-                .to_str()
-                .unwrap(),
-            code
-        )
-    }
 
     #[test]
     fn mb_std_basic() {
@@ -53,18 +43,18 @@ mod tests {
             let c = async_std::task::spawn(async move {
                 sender.reset().await;
                 for i in 0..20 {
-                    mb_exit(&sender, i as u32).await;
                     let msg = format!("abc {}!\n", i);
                     mb_print(&sender, &msg).await;
                     println!("Print done!");
                 }
+                mb_exit(&sender, 21).await;
             });
             async_std::task::spawn(async move {
                 loop {
                     let req = receiver.recv_req("").await;
                     match server.do_cmd(&req).await {
                         Ok(r) => receiver.send_resp(r, "").await,
-                        Err(MBAsyncRPCError::Stop) => break,
+                        Err(MBAsyncRPCError::Stop(server_name, code)) => break (server_name, code),
                         Err(MBAsyncRPCError::Illegal(action)) => {
                             panic!("Illegal cmd {:?}", action)
                         }
@@ -142,19 +132,19 @@ mod tests {
             let c = async_std::task::spawn(async move {
                 sender.reset().await;
                 for i in 0..20 {
-                    mb_exit(&sender, i as u32).await;
-                    println!("send req");
                     let msg = format!("abc {}!\n", i);
                     mb_print(&sender, &msg).await;
                     println!("Print done!");
                 }
+                mb_exit(&sender, 21).await;
+                println!("send req");
             });
             async_std::task::spawn(async move {
                 loop {
                     let req = receiver.recv_req("").await;
                     match server.do_cmd(&req).await {
                         Ok(r) => receiver.send_resp(r, "").await,
-                        Err(MBAsyncRPCError::Stop) => break,
+                        Err(MBAsyncRPCError::Stop(server_name, code)) => break (server_name, code),
                         Err(MBAsyncRPCError::Illegal(action)) => {
                             panic!("Illegal cmd {:?}", action)
                         }
@@ -204,7 +194,7 @@ mod tests {
                     let req = receiver.recv_req("").await;
                     match server.do_cmd(&req).await {
                         Ok(r) => receiver.send_resp(r, "").await,
-                        Err(MBAsyncRPCError::Stop) => break,
+                        Err(MBAsyncRPCError::Stop(server_name, code)) => break (server_name, code),
                         Err(MBAsyncRPCError::Illegal(action)) => {
                             panic!("Illegal cmd {:?}", action)
                         }
@@ -282,7 +272,7 @@ mod tests {
                     let req = receiver.recv_req("").await;
                     match server.do_cmd(&req).await {
                         Ok(r) => receiver.send_resp(r, "").await,
-                        Err(MBAsyncRPCError::Stop) => break,
+                        Err(MBAsyncRPCError::Stop(server_name, code)) => break (server_name, code),
                         Err(MBAsyncRPCError::Illegal(action)) => {
                             panic!("Illegal cmd {:?}", action)
                         }
@@ -319,7 +309,7 @@ mod tests {
                     let req = receiver.recv_req("").await;
                     match server.do_cmd(&req).await {
                         Ok(r) => receiver.send_resp(r, "").await,
-                        Err(MBAsyncRPCError::Stop) => break,
+                        Err(MBAsyncRPCError::Stop(server_name, code)) => break (server_name, code),
                         Err(MBAsyncRPCError::Illegal(action)) => {
                             panic!("Illegal cmd {:?}", action)
                         }
@@ -355,7 +345,7 @@ mod tests {
                     let req = receiver.recv_req("").await;
                     match server.do_cmd(&req).await {
                         Ok(r) => receiver.send_resp(r, "").await,
-                        Err(MBAsyncRPCError::Stop) => break,
+                        Err(MBAsyncRPCError::Stop(server_name, code)) => break (server_name, code),
                         Err(MBAsyncRPCError::Illegal(action)) => {
                             panic!("Illegal cmd {:?}", action)
                         }
@@ -392,7 +382,7 @@ mod tests {
                     let req = receiver.recv_req("").await;
                     match server.do_cmd(&req).await {
                         Ok(r) => receiver.send_resp(r, "").await,
-                        Err(MBAsyncRPCError::Stop) => break,
+                        Err(MBAsyncRPCError::Stop(server_name, code)) => break (server_name, code),
                         Err(MBAsyncRPCError::Illegal(action)) => {
                             panic!("Illegal cmd {:?}", action)
                         }

@@ -20,7 +20,6 @@ pub enum MBAction {
     MEMCMP = 6,
     CALL = 7,
     FILEACCESS = 8,
-    STOPSERVER = 9,
     OTHER = 0x80000000,
 }
 
@@ -42,7 +41,6 @@ impl From<u32> for MBAction {
             6 => MBAction::MEMCMP,
             7 => MBAction::CALL,
             8 => MBAction::FILEACCESS,
-            9 => MBAction::STOPSERVER,
             _ => MBAction::OTHER,
         }
     }
@@ -67,18 +65,6 @@ impl MBRpc for MBExit {
         // entry.words = 1;
         // entry.action = MBAction::EXIT;
         // entry.args[0] = req as MBPtrT;
-    }
-    fn get_resp(&self, _: &MBRespEntry) -> Self::RESP {}
-}
-
-pub struct MBStopServer;
-
-impl MBRpc for MBStopServer {
-    type REQ = ();
-    type RESP = ();
-    fn put_req(&self, _req: Self::REQ, entry: &mut MBReqEntry) {
-        entry.set_action(MBAction::STOPSERVER);
-        // entry.action = MBAction::STOPSERVER;
     }
     fn get_resp(&self, _: &MBRespEntry) -> Self::RESP {}
 }

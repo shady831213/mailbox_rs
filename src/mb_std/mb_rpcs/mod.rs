@@ -6,7 +6,6 @@ mod memcmp;
 mod memmove;
 mod memset;
 mod print;
-mod stop_server;
 pub use c_print::*;
 pub use call::*;
 pub use exit::*;
@@ -15,7 +14,6 @@ pub use memcmp::*;
 pub use memmove::*;
 pub use memset::*;
 pub use print::*;
-pub use stop_server::*;
 
 use crate::mb_channel::*;
 use crate::mb_rpcs::MBAction;
@@ -28,7 +26,7 @@ use std::pin::Pin;
 #[derive(Debug)]
 pub enum MBAsyncRPCError {
     NoResp,
-    Stop,
+    Stop(String, u32),
     Illegal(MBAction),
 }
 

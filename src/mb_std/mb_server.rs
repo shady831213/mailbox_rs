@@ -12,7 +12,6 @@ use std::sync::Mutex;
 
 struct MBServerInner<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA>> {
     exit: MBExit,
-    stop: MBStopServer,
     print: MBPrint<'static>,
     cprint: MBCPrint<'static>,
     memmove: MBMemMove<'static>,
@@ -28,7 +27,6 @@ impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA
     fn new(fs: &Arc<Option<MBFs>>) -> MBServerInner<RA, WA, R> {
         MBServerInner {
             exit: MBExit,
-            stop: MBStopServer,
             print: MBPrint::new(),
             cprint: MBCPrint::new(),
             memmove: MBMemMove::new(),
@@ -56,7 +54,6 @@ impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA
     ) -> Poll<MBAsyncRPCResult> {
         match req.action {
             MBAction::EXIT => self.exit.poll_cmd(server_name, r, &req, cx),
-            MBAction::STOPSERVER => self.stop.poll_cmd(server_name, r, &req, cx),
             MBAction::PRINT => self.print.poll_cmd(server_name, r, &req, cx),
             MBAction::CPRINT => self.cprint.poll_cmd(server_name, r, &req, cx),
             MBAction::MEMMOVE => self.memmove.poll_cmd(server_name, r, &req, cx),
