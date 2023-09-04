@@ -222,6 +222,7 @@ impl<SM: MBShareMem> MBChannelShareMemBuilder<SM> {
                 let k = key.as_str().unwrap();
                 let elf = ch["elf"].as_str();
                 let load = &ch["load"];
+                let server = &ch["server"];
                 let mb_id = ch["mb_id"].as_i64();
                 let base = ch["base"].as_i64();
                 let space_k = ch["space"]
@@ -232,30 +233,37 @@ impl<SM: MBShareMem> MBChannelShareMemBuilder<SM> {
                     k, space_k
                 ))?;
                 let mb_id = mb_id.unwrap_or(0) as usize;
-                let ch = if let Some(e) = elf {
-                    if let Some(l) = load.as_bool() {
-                        MBChannelShareMem::with_elf(e, space, l, mb_id)
-                    } else if let Some(ls) = load.as_str() {
-                        let l = if let Ok(ls) = shellexpand::full(ls) {
-                            ls != "false"
-                        } else {
-                            true
-                        };
-                        MBChannelShareMem::with_elf(e, space, l, mb_id)
+                let server = server.as_bool().unwrap_or_else(|| {
+                    server.as_str().map_or(true, |ls| {
+                        shellexpand::full(ls).map_or(true, |ls| ls != "false")
+                    })
+                });
+                let load = load.as_bool().unwrap_or_else(|| {
+                    load.as_str().map_or(true, |ls| {
+                        shellexpand::full(ls).map_or(true, |ls| ls != "false")
+                    })
+                });
+                if server {
+                    let ch = if let Some(e) = elf {
+                        MBChannelShareMem::with_elf(e, space, load, mb_id)
+                    } else if let Some(b) = base {
+                        MBChannelShareMem::new(b as MBPtrT, space)
                     } else {
-                        MBChannelShareMem::with_elf(e, space, true, mb_id)
-                    }
-                } else if let Some(b) = base {
-                    MBChannelShareMem::new(b as MBPtrT, space)
+                        return Err(format!("{:?}: Neither found elf nor base!", k));
+                    };
+                    self.sys
+                        .chs
+                        .insert(k.to_string(), Arc::new(Mutex::new(MBAsyncChannel::new(ch))));
+                    self.sys
+                        .ch_space_map
+                        .insert(k.to_string(), space_k.to_string());
                 } else {
-                    return Err(format!("{:?}: Neither found elf nor base!", k));
-                };
-                self.sys
-                    .chs
-                    .insert(k.to_string(), Arc::new(Mutex::new(MBAsyncChannel::new(ch))));
-                self.sys
-                    .ch_space_map
-                    .insert(k.to_string(), space_k.to_string());
+                    if let Some(e) = elf {
+                        if load {
+                            space.lock().unwrap().load_elf(e)?;
+                        }
+                    }
+                }
             }
             Ok(self)
         } else {
