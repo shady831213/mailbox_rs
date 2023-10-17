@@ -168,6 +168,6 @@ impl<CH: 'static + MBChannelIf> MBNbSender for MBNbRefSender<CH> {
     }
     fn reset(&mut self) {
         self.0.reset_req();
-        __mb_wfence(&self.0 as *const _ as MBPtrT, core::mem::size_of::<CH>());
+        __mb_wfence(self.0 as *const _ as MBPtrT, core::mem::size_of::<CH>());
     }
 }
