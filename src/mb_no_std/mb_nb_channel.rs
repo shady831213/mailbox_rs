@@ -118,7 +118,7 @@ impl<CH: 'static + MBChannelIf> MBNbRefSender<CH> {
         rpc: &RPC,
         req: REQ,
     ) -> nb::Result<(), ()> {
-        __mb_rfence(&self.0 as *const _ as MBPtrT, core::mem::size_of::<CH>());
+        __mb_rfence(self.0 as *const _ as MBPtrT, core::mem::size_of::<CH>());
         if !self.0.is_ready() {
             return Err(nb::Error::WouldBlock);
         }
@@ -135,7 +135,7 @@ impl<CH: 'static + MBChannelIf> MBNbRefSender<CH> {
         &mut self,
         rpc: &RPC,
     ) -> nb::Result<RESP, MBNbSenderErr> {
-        __mb_rfence(&self.0 as *const _ as MBPtrT, core::mem::size_of::<CH>());
+        __mb_rfence(self.0 as *const _ as MBPtrT, core::mem::size_of::<CH>());
         if !self.0.is_ready() {
             return Err(nb::Error::Other(MBNbSenderErr::NotReady));
         }
