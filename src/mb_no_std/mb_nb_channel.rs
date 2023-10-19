@@ -97,7 +97,10 @@ impl<CH: 'static + MBChannelIf> MBNbSender for MBNbLockRefSender<CH> {
         use core::ops::Deref;
         let mut ch = self.0.lock();
         ch.reset_req();
-        __mb_wfence(ch.deref() as *const _ as MBPtrT, core::mem::size_of::<CH>());
+        __mb_wfence(
+            (*(ch.deref())) as *const CH as MBPtrT,
+            core::mem::size_of::<CH>(),
+        );
     }
 }
 
