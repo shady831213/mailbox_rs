@@ -2,6 +2,7 @@ use crate::mb_channel::*;
 use crate::mb_rpcs::*;
 extern crate nb;
 extern crate spin;
+use super::{__mb_rfence, __mb_wfence};
 use nb::block;
 use spin::Mutex;
 #[linkage = "weak"]
@@ -13,14 +14,6 @@ extern "C" fn __mb_save_flag() -> MBPtrT {
 #[linkage = "weak"]
 #[no_mangle]
 extern "C" fn __mb_restore_flag(_flag: MBPtrT) {}
-
-#[linkage = "weak"]
-#[no_mangle]
-extern "C" fn __mb_rfence(_start: MBPtrT, _size: usize) {}
-
-#[linkage = "weak"]
-#[no_mangle]
-extern "C" fn __mb_wfence(_start: MBPtrT, _size: usize) {}
 
 #[derive(Debug)]
 pub enum MBNbSenderErr {
@@ -101,9 +94,10 @@ impl<CH: 'static + MBChannelIf> MBNbSender for MBNbLockRefSender<CH> {
         resp
     }
     fn reset(&mut self) {
+        use core::ops::Deref;
         let mut ch = self.0.lock();
         ch.reset_req();
-        __mb_wfence(&mut ch as *mut _ as MBPtrT, core::mem::size_of::<CH>());
+        __mb_wfence(ch.deref() as *const _ as MBPtrT, core::mem::size_of::<CH>());
     }
 }
 

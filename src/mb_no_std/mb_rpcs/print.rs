@@ -1,3 +1,4 @@
+use super::super::__mb_wfence;
 use crate::mb_channel::*;
 use crate::mb_no_std::mb_nb_channel::*;
 use crate::mb_rpcs::*;
@@ -8,6 +9,7 @@ pub fn mb_print<SENDER: MBNbSender>(sender: &mut SENDER, msg: &str) {
         len: msg.len() as u32,
         ptr: msg.as_ptr() as MBPtrT,
     };
+    __mb_wfence(msg.as_ptr() as MBPtrT, msg.len());
     sender.send(&print_rpc, &str_args);
 }
 
