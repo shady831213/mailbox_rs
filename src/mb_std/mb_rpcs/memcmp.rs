@@ -42,11 +42,15 @@ pub fn mb_memcmp<'a, CH: MBChannelIf>(
     sender: &'a MBAsyncSender<CH>,
     s1: MBPtrT,
     s2: MBPtrT,
-    len: MBPtrT,
+    len: usize,
 ) -> impl Future<Output = i32> + 'a {
     let memcmp_rpc = MBMemCmp::new();
     async move {
-        let args = MBMemCmpArgs { s1, s2, len };
+        let args = MBMemCmpArgs {
+            s1,
+            s2,
+            len: len as MBPtrT,
+        };
         sender.send_req(&memcmp_rpc, &args).await;
         sender.recv_resp(&memcmp_rpc).await
     }

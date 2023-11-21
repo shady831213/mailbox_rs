@@ -64,7 +64,7 @@ impl<'a, RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER 
 pub fn mb_call<'a, CH: MBChannelIf>(
     sender: &'a MBAsyncSender<CH>,
     method: &'a str,
-    args: &'a [MBPtrT],
+    args: &'a [usize],
 ) -> impl Future<Output = MBPtrT> + 'a {
     let call_rpc = MBCall::new();
     async move {
@@ -73,7 +73,9 @@ pub fn mb_call<'a, CH: MBChannelIf>(
             method: method.as_ptr() as MBPtrT,
             args: [0; MB_MAX_ARGS - 1],
         };
-        call_args.args[..args.len()].copy_from_slice(&args[..args.len()]);
+        for (i, d) in args.iter().enumerate() {
+            call_args.args[i] = *d as MBPtrT
+        }
         sender.send_req(&call_rpc, &call_args).await;
         sender.recv_resp(&call_rpc).await
     }

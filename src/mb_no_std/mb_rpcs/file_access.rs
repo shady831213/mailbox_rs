@@ -11,15 +11,33 @@ pub fn mb_fclose<SENDER: MBNbSender>(sender: &mut SENDER, fd: u32) {
     sender.send_nb(&fclose_rpc, fd)
 }
 
-pub fn mb_fread<SENDER: MBNbSender>(sender: &mut SENDER, fd: u32, ptr: MBPtrT, len: MBPtrT) -> usize {
+pub fn mb_fread<SENDER: MBNbSender>(
+    sender: &mut SENDER,
+    fd: u32,
+    ptr: MBPtrT,
+    len: usize,
+) -> usize {
     let fread_rpc = MBFRead::new();
-    let args = MBFReadArgs { fd, ptr, len };
+    let args = MBFReadArgs {
+        fd,
+        ptr,
+        len: len as MBPtrT,
+    };
     sender.send(&fread_rpc, &args)
 }
 
-pub fn mb_fwrite<SENDER: MBNbSender>(sender: &mut SENDER, fd: u32, ptr: MBPtrT, len: MBPtrT) -> usize {
+pub fn mb_fwrite<SENDER: MBNbSender>(
+    sender: &mut SENDER,
+    fd: u32,
+    ptr: MBPtrT,
+    len: usize,
+) -> usize {
     let fwrite_rpc = MBFWrite::new();
-    let args = MBFWriteArgs { fd, ptr, len };
+    let args = MBFWriteArgs {
+        fd,
+        ptr,
+        len: len as MBPtrT,
+    };
     sender.send(&fwrite_rpc, &args)
 }
 

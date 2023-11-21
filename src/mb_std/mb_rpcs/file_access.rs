@@ -134,20 +134,22 @@ pub fn mb_fclose<CH: MBChannelIf>(
     fd: u32,
 ) -> impl Future<Output = ()> + '_ {
     let fclose_rpc = MBFClose;
-    async move {
-        sender.send_req(&fclose_rpc, fd).await
-    }
+    async move { sender.send_req(&fclose_rpc, fd).await }
 }
 
 pub fn mb_fread<'a, CH: MBChannelIf>(
     sender: &'a MBAsyncSender<CH>,
     fd: u32,
     ptr: MBPtrT,
-    len: MBPtrT,
+    len: usize,
 ) -> impl Future<Output = usize> + 'a {
     let fread_rpc = MBFRead::new();
     async move {
-        let args = MBFReadArgs { fd, ptr, len };
+        let args = MBFReadArgs {
+            fd,
+            ptr,
+            len: len as MBPtrT,
+        };
         sender.send_req(&fread_rpc, &args).await;
         sender.recv_resp(&fread_rpc).await
     }
@@ -157,11 +159,15 @@ pub fn mb_fwrite<'a, CH: MBChannelIf>(
     sender: &'a MBAsyncSender<CH>,
     fd: u32,
     ptr: MBPtrT,
-    len: MBPtrT,
+    len: usize,
 ) -> impl Future<Output = usize> + 'a {
     let fwrite_rpc = MBFWrite::new();
     async move {
-        let args = MBFWriteArgs { fd, ptr, len };
+        let args = MBFWriteArgs {
+            fd,
+            ptr,
+            len: len as MBPtrT,
+        };
         sender.send_req(&fwrite_rpc, &args).await;
         sender.recv_resp(&fwrite_rpc).await
     }

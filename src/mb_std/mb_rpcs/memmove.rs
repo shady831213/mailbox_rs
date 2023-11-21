@@ -33,11 +33,15 @@ pub fn mb_memmove<'a, CH: MBChannelIf>(
     sender: &'a MBAsyncSender<CH>,
     dest: MBPtrT,
     src: MBPtrT,
-    len: MBPtrT,
+    len: usize,
 ) -> impl Future<Output = MBPtrT> + 'a {
     let memmove_rpc = MBMemMove::new();
     async move {
-        let args = MBMemMoveArgs { dest, src, len };
+        let args = MBMemMoveArgs {
+            dest,
+            src,
+            len: len as MBPtrT,
+        };
         sender.send_req(&memmove_rpc, &args).await;
         sender.recv_resp(&memmove_rpc).await;
         dest

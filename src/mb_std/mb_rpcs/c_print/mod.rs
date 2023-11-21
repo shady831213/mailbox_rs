@@ -257,7 +257,7 @@ impl<'a> MBCPrint<'a> {
         file: MBPtrT,
         pos: u32,
         fmt_str: MBPtrT,
-        args: &'a [MBPtrT],
+        args: &'a [usize],
     ) -> MBCStringArgs {
         let mut c_str_args = MBCStringArgs::default();
         c_str_args.len = args.len() as u32 + 3;
@@ -265,7 +265,7 @@ impl<'a> MBCPrint<'a> {
         c_str_args.pos = pos as MBPtrT;
         c_str_args.fmt_str = fmt_str;
         for (i, d) in args.iter().enumerate() {
-            c_str_args.args[i] = *d
+            c_str_args.args[i] = *d as MBPtrT
         }
         c_str_args
     }
@@ -275,7 +275,7 @@ pub fn mb_cprint<'a, CH: MBChannelIf>(
     fmt_str: &'a str,
     file: &'a str,
     pos: u32,
-    args: &'a [MBPtrT],
+    args: &'a [usize],
 ) -> impl Future<Output = ()> + 'a {
     let cprint_rpc = MBCPrint::new();
     async move {

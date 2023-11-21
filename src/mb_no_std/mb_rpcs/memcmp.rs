@@ -4,9 +4,13 @@ pub fn mb_memcmp<SENDER: MBNbSender>(
     sender: &mut SENDER,
     s1: MBPtrT,
     s2: MBPtrT,
-    len: MBPtrT,
+    len: usize,
 ) -> i32 {
     let memcmp_rpc = MBMemCmp::new();
-    let args = MBMemCmpArgs { s1, s2, len };
+    let args = MBMemCmpArgs {
+        s1,
+        s2,
+        len: len as MBPtrT,
+    };
     sender.send(&memcmp_rpc, &args)
 }

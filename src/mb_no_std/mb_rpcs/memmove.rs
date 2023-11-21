@@ -4,10 +4,14 @@ pub fn mb_memmove<SENDER: MBNbSender>(
     sender: &mut SENDER,
     dest: MBPtrT,
     src: MBPtrT,
-    len: MBPtrT,
+    len: usize,
 ) -> MBPtrT {
     let memmove_rpc = MBMemMove::new();
-    let args = MBMemMoveArgs { dest, src, len };
+    let args = MBMemMoveArgs {
+        dest,
+        src,
+        len: len as MBPtrT,
+    };
     sender.send(&memmove_rpc, &args);
     dest
 }

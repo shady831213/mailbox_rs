@@ -4,8 +4,8 @@ use crate::mb_rpcs::*;
 pub fn mb_call<SENDER: MBNbSender>(
     sender: &mut SENDER,
     method: *const u8,
-    args_len: MBPtrT,
-    args: *const MBPtrT,
+    args_len: usize,
+    args: *const usize,
 ) -> MBPtrT {
     let call_rpc = MBCall::new();
     let mut call_args = MBCallArgs {
@@ -15,8 +15,8 @@ pub fn mb_call<SENDER: MBNbSender>(
     };
     unsafe {
         for i in 0..args_len {
-            call_args.args[i as usize] =
-                *((args as MBPtrT + i * core::mem::size_of::<MBPtrT>() as MBPtrT) as *const MBPtrT)
+            call_args.args[i] =
+                *((args as usize + i * core::mem::size_of::<usize>()) as *const usize) as MBPtrT
         }
     }
     sender.send(&call_rpc, &call_args)

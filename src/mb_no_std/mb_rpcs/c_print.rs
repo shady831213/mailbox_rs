@@ -7,8 +7,8 @@ pub fn mb_cprint<SENDER: MBNbSender>(
     fmt_str: *const u8,
     file: *const u8,
     pos: u32,
-    args_len: MBPtrT,
-    args: *const MBPtrT,
+    args_len: usize,
+    args: *const usize,
 ) {
     let cprint_rpc = MBCPrint::new();
     let c_str_args =
@@ -57,8 +57,8 @@ impl<'a> MBCPrint<'a> {
         file: MBPtrT,
         pos: u32,
         fmt_str: MBPtrT,
-        args_len: MBPtrT,
-        args: *const MBPtrT,
+        args_len: usize,
+        args: *const usize,
     ) -> MBCStringArgs {
         let mut c_str_args = MBCStringArgs::default();
         c_str_args.len = args_len as u32 + 3;
@@ -67,9 +67,8 @@ impl<'a> MBCPrint<'a> {
         c_str_args.fmt_str = fmt_str;
         unsafe {
             for i in 0..args_len {
-                c_str_args.args[i as usize] = *((args as MBPtrT
-                    + i * core::mem::size_of::<MBPtrT>() as MBPtrT)
-                    as *const MBPtrT)
+                c_str_args.args[i] =
+                    *((args as usize + i * core::mem::size_of::<usize>()) as *const usize) as MBPtrT
             }
         }
         c_str_args

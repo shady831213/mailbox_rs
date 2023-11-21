@@ -34,11 +34,15 @@ pub fn mb_memset<'a, CH: MBChannelIf>(
     sender: &'a MBAsyncSender<CH>,
     dest: MBPtrT,
     data: MBPtrT,
-    len: MBPtrT,
+    len: usize,
 ) -> impl Future<Output = MBPtrT> + 'a {
     let memset_rpc = MBMemSet::new();
     async move {
-        let args = MBMemSetArgs { dest, data, len };
+        let args = MBMemSetArgs {
+            dest,
+            data,
+            len: len as MBPtrT,
+        };
         sender.send_req(&memset_rpc, &args).await;
         sender.recv_resp(&memset_rpc).await;
         dest
