@@ -134,7 +134,7 @@ pub trait MBShareMem {
             elf.program_iter().for_each(|p| {
                 if let Ok(program::Type::Load) = p.get_type() {
                     if let Ok(program::SegmentData::Undefined(d)) = p.get_data(&elf) {
-                        let addr = p.virtual_addr() as MBPtrT;
+                        let addr = p.physical_addr() as MBPtrT;
                         println!(
                             "load elf {} segment({}) @ {:#x} - {:#x}!",
                             file,
