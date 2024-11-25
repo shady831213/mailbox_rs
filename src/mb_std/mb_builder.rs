@@ -135,7 +135,10 @@ impl<SM: MBShareMem> MBChannelShareMemSys<SM> {
     pub fn mailboxes(&self) -> &HashMap<String, Arc<Mutex<MBAsyncChannel<MBChannelShareMem<SM>>>>> {
         &self.chs
     }
-    pub fn wake<'a, F: Fn() -> bool + 'a>(&'a self, tick: F) -> impl Future<Output = ()> + '_ {
+    pub fn wake<'a, F: Fn() -> bool + 'a>(
+        &'a self,
+        tick: F,
+    ) -> impl Future<Output = ()> + use<'a, F, SM> {
         async move {
             loop {
                 let wakers = self

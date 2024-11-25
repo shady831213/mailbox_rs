@@ -42,6 +42,7 @@ use parser::{parse_format_string, FormatElement};
 pub use parser::{ConversionSpecifier, ConversionType, NumericParam};
 
 /// Error type
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum PrintfError {
     /// Error parsing the format string

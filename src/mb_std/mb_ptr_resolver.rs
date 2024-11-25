@@ -112,8 +112,12 @@ impl Read for MBLocalPtrReader {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let len = buf.len();
         unsafe {
-            std::slice::from_raw_parts_mut(buf.as_mut_ptr(), len)
-                .copy_from_slice(std::slice::from_raw_parts(self.ptr, len))
+            for (i, d) in std::slice::from_raw_parts(self.ptr, len)
+                .into_iter()
+                .enumerate()
+            {
+                buf[i] = *d;
+            }
         }
         Ok(len)
     }
