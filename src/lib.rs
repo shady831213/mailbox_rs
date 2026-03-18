@@ -1,4 +1,3 @@
-#![cfg_attr(feature = "no_std", feature(const_mut_refs))]
 #![feature(linkage)]
 #![cfg_attr(feature = "no_std", no_std)]
 #![cfg_attr(feature = "std", feature(int_roundings))]

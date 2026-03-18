@@ -94,13 +94,12 @@ impl<CH: 'static + MBChannelIf> MBNbSender for MBNbLockRefSender<CH> {
         resp
     }
     fn reset(&mut self) {
-        use core::ops::Deref;
         let mut ch = self.0.lock();
-        ch.reset_req();
-        __mb_wfence(
-            (*(ch.deref())) as *const CH as MBPtrT,
-            core::mem::size_of::<CH>(),
-        );
+        let ptr = ch.reset_req();
+        __mb_wfence(ptr, 2 * core::mem::size_of::<u32>());
+        let (ptr1, ptr2) = ch.reset_req_p2();
+        __mb_wfence(ptr1, core::mem::size_of::<MBQueue<MBReqEntry>>());
+        __mb_wfence(ptr2, core::mem::size_of::<MBQueue<MBRespEntry>>());
     }
 }
 
@@ -164,7 +163,10 @@ impl<CH: 'static + MBChannelIf> MBNbSender for MBNbRefSender<CH> {
         resp
     }
     fn reset(&mut self) {
-        self.0.reset_req();
-        __mb_wfence(self.0 as *const _ as MBPtrT, core::mem::size_of::<CH>());
+        let ptr = self.0.reset_req();
+        __mb_wfence(ptr, 2 * core::mem::size_of::<u32>());
+        let (ptr1, ptr2) = self.0.reset_req_p2();
+        __mb_wfence(ptr1, core::mem::size_of::<MBQueue<MBReqEntry>>());
+        __mb_wfence(ptr2, core::mem::size_of::<MBQueue<MBRespEntry>>());
     }
 }

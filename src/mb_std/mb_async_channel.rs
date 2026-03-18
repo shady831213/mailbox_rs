@@ -84,6 +84,7 @@ impl<CH: MBChannelIf> MBAsyncSender<CH> {
     fn reset_req(&self) {
         let mut ch = self.0.lock().unwrap();
         ch.channel.reset_req();
+        ch.channel.reset_req_p2();
         if let Some(w) = ch.s_waker.take() {
             w.wake();
         }
@@ -224,6 +225,7 @@ impl<CH: MBChannelIf> MBAsyncReceiver<CH> {
             ch.s_waker = Some(cx.waker().clone());
             return Poll::Pending;
         }
+        ch.channel.reset_pre_ack();
         ch.channel.reset_ack();
         if let Some(w) = ch.c_waker.take() {
             w.wake();

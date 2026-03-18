@@ -214,8 +214,10 @@ impl<T> MBQueueIf<T> for MBQueue<T> {
 
 pub trait MBChannelIf {
     fn version(&self) -> MBVersion;
-    fn reset_req(&mut self);
-    fn reset_ack(&mut self);
+    fn reset_req(&mut self) -> MBPtrT;
+    fn reset_req_p2(&mut self) -> (MBPtrT, MBPtrT);
+    fn reset_pre_ack(&mut self) -> (MBPtrT, MBPtrT);
+    fn reset_ack(&mut self) -> MBPtrT;
     fn reset_ready(&self) -> bool;
     fn is_ready(&self) -> bool;
     fn req_can_get(&self) -> bool;
@@ -300,13 +302,20 @@ impl MBChannelIf for MBChannel {
     fn is_ready(&self) -> bool {
         io_read32!(&self.state as *const MBState) == MBState::READY as u32
     }
-    fn reset_req(&mut self) {
+    fn reset_req(&mut self) -> MBPtrT {
         io_write32!(&mut self.version.0, MB_VERSION.0);
         io_write32!(&mut self.state as *mut MBState, MBState::INIT);
+        &self.version as *const _ as MBPtrT
+    }
+    fn reset_req_p2(&mut self) -> (MBPtrT, MBPtrT) {
         io_write32!(&mut self.req_queue.idx_p, 0);
         io_write32!(&mut self.req_queue.idx_c.0, 0);
         io_write32!(&mut self.resp_queue.idx_p, 0);
         io_write32!(&mut self.resp_queue.idx_c.0, 0);
+        (
+            &self.req_queue as *const _ as MBPtrT,
+            &self.resp_queue as *const _ as MBPtrT,
+        )
     }
     fn reset_ready(&self) -> bool {
         io_read32!(&self.version.0) != 0
@@ -316,8 +325,19 @@ impl MBChannelIf for MBChannel {
             && io_read32!(&self.resp_queue.idx_p) == 0
             && io_read32!(&self.resp_queue.idx_c.0) == 0
     }
-    fn reset_ack(&mut self) {
+    fn reset_pre_ack(&mut self) -> (MBPtrT, MBPtrT) {
+        io_write32!(&mut self.req_queue.idx_p, 0);
+        io_write32!(&mut self.req_queue.idx_c.0, 0);
+        io_write32!(&mut self.resp_queue.idx_p, 0);
+        io_write32!(&mut self.resp_queue.idx_c.0, 0);
+        (
+            &self.req_queue as *const _ as MBPtrT,
+            &self.resp_queue as *const _ as MBPtrT,
+        )
+    }
+    fn reset_ack(&mut self) -> MBPtrT {
         io_write32!(&mut self.state as *mut MBState, MBState::READY);
+        &self.state as *const _ as MBPtrT
     }
     fn req_can_get(&self) -> bool {
         !self.req_queue.empty()

@@ -238,18 +238,20 @@ impl<SM: MBShareMem> MBChannelIf for MBChannelShareMem<SM> {
     fn is_ready(&self) -> bool {
         self.state() == MBState::READY
     }
-    fn reset_req(&mut self) {
+    fn reset_req(&mut self) -> MBPtrT {
         let version = MB_VERSION;
         let state = MBState::INIT;
-        {
-            let mut mem = self.mem.lock().unwrap();
-            mem.write_sized(self.base, &version);
-            mem.write_sized(self.base + self.state_offset(), &state);
-        }
+        let mut mem = self.mem.lock().unwrap();
+        mem.write_sized(self.base, &version);
+        mem.write_sized(self.base + self.state_offset(), &state);
+        self.base
+    }
+    fn reset_req_p2(&mut self) -> (MBPtrT, MBPtrT) {
         self.req_queue.clr_p();
         self.req_queue.clr_c();
         self.resp_queue.clr_p();
         self.resp_queue.clr_c();
+        (self.req_queue.base, self.resp_queue.base)
     }
     fn reset_ready(&self) -> bool {
         self.version() != MBVersion::from_u32(0)
@@ -259,12 +261,20 @@ impl<SM: MBShareMem> MBChannelIf for MBChannelShareMem<SM> {
             && self.resp_queue.idx_p() == 0
             && self.resp_queue.idx_c() == 0
     }
-    fn reset_ack(&mut self) {
+    fn reset_pre_ack(&mut self) -> (MBPtrT, MBPtrT) {
+        self.req_queue.clr_p();
+        self.req_queue.clr_c();
+        self.resp_queue.clr_p();
+        self.resp_queue.clr_c();
+        (self.req_queue.base, self.resp_queue.base)
+    }
+    fn reset_ack(&mut self) -> MBPtrT {
         let state = MBState::READY;
         self.mem
             .lock()
             .unwrap()
             .write_sized(self.base + self.state_offset(), &state);
+        self.base + self.state_offset()
     }
 
     fn req_can_get(&self) -> bool {

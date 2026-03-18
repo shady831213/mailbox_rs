@@ -74,8 +74,6 @@ impl<RA: MBPtrReader, WA: MBPtrWriter, R: MBPtrResolver<READER = RA, WRITER = WA
         _cx: &mut Context,
     ) -> Poll<MBAsyncRPCResult> {
         let file_action = req.args[0] as u32;
-        let mut resp = MBRespEntry::default();
-        resp.words = 1;
         match file_action {
             a if a == MBFileAction::OPEN as u32 => {
                 let args = MBFOpenArgs {
