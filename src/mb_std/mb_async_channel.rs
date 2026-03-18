@@ -176,9 +176,21 @@ impl<CH: MBChannelIf> MBAsyncReceiver<CH> {
         }
         if !ch.channel.req_can_get() {
             ch.s_waker = Some(cx.waker().clone());
+            if !ch.channel.is_ready() {
+                if let Some(w) = ch.s_waker.take() {
+                    w.wake();
+                }
+                return Poll::Ready(Err(MBAsyncChannelErr::NotReady));
+            }
             return Poll::Pending;
         }
         let req = ch.channel.get_req();
+        if !ch.channel.is_ready() {
+            if let Some(w) = ch.s_waker.take() {
+                w.wake();
+            }
+            return Poll::Ready(Err(MBAsyncChannelErr::NotReady));
+        }
         ch.channel.ack_req();
         if let Some(w) = ch.c_waker.take() {
             w.wake();
